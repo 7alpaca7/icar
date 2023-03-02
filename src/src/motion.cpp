@@ -36,6 +36,7 @@ using namespace cv;
  *
  */
 class Motion
+
 {
 private:
   int countShift = 0; // 变速计数器
@@ -134,10 +135,10 @@ public:
    *
    * @param controlCenter 智能车控制中心
    */
-  void poseCtrl(int controlCenter,Scene scene,PredictResult predict)
+  void poseCtrl(int controlCenter,Scene scene,PredictResult &predict)
   {
     
-  cout << "进入poseCtrl函数，当前场景: " << getScene(scene) << endl;
+  cout << "进入poseCtrl函数，当前场景: " << getScene(scene)<< ",predict.type = "<<predict.type << endl;
   cout.flush();
     
     float error = controlCenter - COLSIMAGE / 2; // 图像控制中心转换偏差
@@ -165,17 +166,18 @@ public:
       params.turnP = abs(error) * params.runP2Left + params.runP1Left;
     }
     int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+    float pwmDiff1= 0.9*pwmDiff;
     errorLast = error;
-    cout << "pwmDiff" << pwmDiff << endl;
+    cout << "pwmDiff1" << pwmDiff1 << endl;
 
-    if (error>0&&error<45)
-      servoPwm = (uint16_t)(1740 - pwmDiff); 
-    else if(error>=45)
-    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
+    if (error>0&&error<67)
+      servoPwm = (uint16_t)(1740 - pwmDiff1); 
+    else if(error>=67)
+    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 145);// PWM转换
     else if(error<0&&error>-87)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
     else if(error<=-87)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 365);
     else
       servoPwm = PWMSERVOMID;
   
@@ -184,7 +186,7 @@ public:
 
 else if(scene == Scene::ObstacleScene&&predict.type == LABEL_CONE)
 {
-   {
+   
         cout <<"检测到锥桶" << endl;
         cout << "obs_error1:" << error << endl;
 
@@ -204,23 +206,66 @@ else if(scene == Scene::ObstacleScene&&predict.type == LABEL_CONE)
       params.turnP = abs(error) * params.runP2Left + params.runP1Left;
     }
     int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+    float pwmDiff1= 0.9*pwmDiff;
     errorLast = error;
-    cout << "pwmDiff" << pwmDiff << endl;
+    cout << "pwmDiff1" << pwmDiff1 << endl;
 
     if (error>0&&error<14)
-      servoPwm = (uint16_t)(1740 - pwmDiff); 
+      servoPwm = (uint16_t)(1740 - pwmDiff1); 
     else if(error>=14)
-    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
+    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 145);// PWM转换
     else if(error<0&&error>-48)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
     else if(error<=-48)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 365);
     else
       servoPwm = PWMSERVOMID;
   
-      }
+      
 
 }
+
+else if(scene == Scene::ObstacleScene&&predict.type == LABEL_PEDESTRIAN)
+{
+   
+        cout <<"检测到行人" << endl;
+        cout << "obs_error1:" << error << endl;
+
+        if (abs(error - errorLast) > COLSIMAGE / 10)
+    {
+      error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                : errorLast - COLSIMAGE / 10;
+    }
+    cout << "obs_error2:" << error << endl;
+
+    if (error > 0)
+    { // 右转时
+      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+    }
+    else
+    { // 左转时
+      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+    }
+    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+    float pwmDiff1= 0.9*pwmDiff;
+    errorLast = error;
+    cout << "pwmDiff1" << pwmDiff1 << endl;
+
+    if (error>0&&error<102)
+      servoPwm = (uint16_t)(1740 - pwmDiff1); 
+    else if(error>=102)
+    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 145);// PWM转换
+    else if(error<0&&error>-70)  //error<-12
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
+    else if(error<=-70)  //error<-12
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 365);
+    else
+      servoPwm = PWMSERVOMID;
+  
+      
+
+}
+
 
 else{
 
@@ -232,7 +277,6 @@ else{
                                 : errorLast - COLSIMAGE / 10;
     }
     cout << "error2:" << error << endl;
-
 
 
     
@@ -248,13 +292,13 @@ else{
     errorLast = error;
     cout << "pwmDiff" << pwmDiff << endl;
 
-    if (error>0&&error<38)
+    if (error>0&&error<42)
       servoPwm = (uint16_t)(1740 - pwmDiff); 
-    else if(error>38)
+    else if(error>42)
     servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
-    else if(error<0&&error>-38)  //error<-12
+    else if(error<0&&error>-42)  //error<-12
       servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
-    else if(error<-38)  //error<-12
+    else if(error<-42)  //error<-12
       servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
     else
       servoPwm = PWMSERVOMID;
@@ -282,53 +326,56 @@ else{
    * @param control
    */
   void speedCtrl(bool enable, bool slowDown, ControlCenter control)
-  {
-    // 控制率
-    uint8_t controlLow = 0;   // 速度控制下限
-    uint8_t controlMid = 5;   // 控制率
-    uint8_t controlHigh = 10; // 速度控制上限
-
+{
+    // 控制率 - 增大上限和调整中间阈值
+    uint8_t controlLow = 0;     // 速度控制下限
+    uint8_t controlMid = 3;     // 降低阈值，更快切换到高速
+    uint8_t controlHigh = 15;   // 提高上限，允许更大调整范围
+    
+    // 加速步长 - 增大每次调整的幅度
+    uint8_t accelStep = 2;      // 原为1，现在每次调整+2/-2
+    
     if (slowDown)
     {
-      countShift = controlLow;
-      speed = params.speedDown;
+        countShift = controlLow;
+        speed = params.speedDown;
     }
     else if (enable) // 加速使能
     {
-      if (control.centerEdge.size() < 10)
-      {
-        speed = params.speedLow;
-        countShift = controlLow;
-        return;
-      }
-      if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE / 2)
-      {
-        speed = params.speedLow;
-        countShift = controlLow;
-        return;
-      }
-      if (abs(control.sigmaCenter) < 100.0)
-      {
-        countShift++;
-        if (countShift > controlHigh)
-          countShift = controlHigh;
-      }
-      else
-      {
-        countShift--;
-        if (countShift < controlLow)
-          countShift = controlLow;
-      }
+        if (control.centerEdge.size() < 10)
+        {
+            speed = params.speedLow;
+            countShift = controlLow;
+            return;
+        }
+        if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE / 2)
+        {
+            speed = params.speedLow;
+            countShift = controlLow;
+            return;
+        }
+        
+        if (abs(control.sigmaCenter) < 100.0)
+        {
+            countShift += accelStep;  // 加速时增加步长
+            if (countShift > controlHigh)
+                countShift = controlHigh;
+        }
+        else
+        {
+            countShift -= accelStep;  // 减速时同样增加步长
+            if (countShift < controlLow)
+                countShift = controlLow;
+        }
 
-      if (countShift > controlMid)
-        speed = params.speedHigh;
-      else
-        speed = params.speedLow;
+        if (countShift > controlMid)
+            speed = params.speedHigh;
+        else
+            speed = params.speedLow;
     }
     else
     {
-      countShift = controlLow;
-      speed = params.speedLow;
+        countShift = controlLow;
+        speed = params.speedLow;
     }
-  }
-};
+}};

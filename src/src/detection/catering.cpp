@@ -153,14 +153,14 @@ public:
             if (counterRec)
             {
                 counterSession++;
-                if (counterRec >= 3 && counterSession < 8)
+                if (counterRec >= 2 && counterSession < 7)
                 {
                     counterRec = 0;
                     counterSession = 0;
                     cateringEnable = true; // 检测到汉堡标志
                     return true;
                 }
-                else if (counterSession >= 8)
+                else if (counterSession >= 7)
                 {
                     counterRec = 0;
                     counterSession = 0;

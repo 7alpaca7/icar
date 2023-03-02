@@ -150,7 +150,7 @@ public:
         {
             for (size_t i = 0; i < predict.size(); i++)
             {
-                if (((predict[i].type == LABEL_SCHOOL || predict[i].type == LABEL_COMPANY)  && predict[i].score > 0.6)  && (predict[i].y + predict[i].height) > ROWSIMAGE * 0.1)
+                if (((predict[i].type == LABEL_SCHOOL || predict[i].type == LABEL_COMPANY)  && predict[i].score > 0.5)  && (predict[i].y + predict[i].height) > ROWSIMAGE * 0.1)
                 {
                     counterRec++;
                     if (predict[i].x < COLSIMAGE / 2)   // 标识牌在左侧
@@ -164,14 +164,14 @@ public:
             if (counterRec)
             {
                 counterSession++;
-                if (counterRec >= 4 && counterSession < 8)
+                if (counterRec >= 2 && counterSession < 6)
                 {
                     counterRec = 0;
                     counterSession = 0;
                     laybyEnable = true; // 检测到标识牌子
                     return true;
                 }
-                else if (counterSession >= 8)
+                else if (counterSession >= 7)
                 {
                     counterRec = 0;
                     counterSession = 0;

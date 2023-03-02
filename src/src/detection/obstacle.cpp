@@ -26,6 +26,7 @@
 #include <opencv2/opencv.hpp>
 #include "../../include/common.hpp"
 #include "../../include/detection.hpp" // Ai模型预测
+// #include "../icar.cpp"
 
 using namespace std;
 using namespace cv;
@@ -46,7 +47,7 @@ public:
      * @return true
      * @return false
      */
-    bool process(Tracking &track, vector<PredictResult> predict)
+    bool process(Tracking &track, vector<PredictResult> predict, PredictResult &icar_predict)
     {
         enable = false; // 场景检测使能标志
         if (track.pointsEdgeLeft.size() < ROWSIMAGE / 2 || track.pointsEdgeRight.size() < ROWSIMAGE / 2)
@@ -76,6 +77,19 @@ public:
         }
         resultObs = resultsObs[index];
         enable = true; // 场景检测使能标志
+
+        if (resultsObs[index].type == LABEL_BLOCK)
+        {
+            icar_predict.type = LABEL_BLOCK;
+        }
+        else if (resultsObs[index].type == LABEL_PEDESTRIAN)
+        {
+            icar_predict.type = LABEL_PEDESTRIAN;
+        }
+        else if (resultsObs[index].type == LABEL_CONE)
+        {
+            icar_predict.type = LABEL_CONE;
+        }
 
         // 障碍物方向判定（左/右）
         int row = track.pointsEdgeLeft.size() - (resultsObs[index].y + resultsObs[index].height - track.rowCutUp);

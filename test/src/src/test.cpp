@@ -19,7 +19,7 @@ int main()
     {
         cout << "输入：";
         cin >> speed;
-        uart->carControl(speed, 1550);
+        uart->carControl(0, speed);
         cout << "speed：" << speed << endl;
     }
     uart->close();

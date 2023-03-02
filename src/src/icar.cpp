@@ -81,6 +81,7 @@ int main(int argc, char const *argv[])
 
   // USB摄像头初始化
   if (motion.params.debug)
+
     capture = VideoCapture(motion.params.video); // 打开本地视频
   else
     capture = VideoCapture("/dev/video0"); // 打开摄像头
@@ -102,13 +103,13 @@ int main(int argc, char const *argv[])
     // createTrackbar("Frame", "ICAR", &display.index, display.frameMax, [](int, void *) {}); // 创建Opencv图像滑条控件
     // setMouseCallback("ICAR", mouseCallback);
   }
-  cin>>flag;
+  cin >> flag;
   // 等待按键发车
   if (!motion.params.debug)
   {
     printf("--------------[等待按键发车!]-------------------\n");
-    //uart->buzzerSound(uart->BUZZER_START);//提示音
-    //cout << "llai" << endl;
+    uart->buzzerSound(uart->BUZZER_START); // 提示音
+    // cout << "llai" << endl;
     while (!uart->keypress)
       waitKey(200);
     cout << "fa" << endl;
@@ -128,8 +129,8 @@ int main(int argc, char const *argv[])
   // 初始化参数
   Scene scene = Scene::NormalScene;     // 初始化场景：常规道路
   Scene sceneLast = Scene::NormalScene; // 记录上一次场景状态
-  PredictResult predict;
   long preTime;
+  PredictResult icar_predict;
   Mat img;
   cout << motion.params.runP1Left << " " << motion.params.runP1Right << endl;
   while (1)
@@ -140,7 +141,7 @@ int main(int argc, char const *argv[])
       cout << "jin" << endl;
       if (display.indexLast == display.index) // 图像帧未更新
       {
-        display.show();     // 显示综合绘图
+        display.show(); // 显示综合绘图
         // usleep(300 * 1000); // us延迟
         waitKey(1); // ms延迟
         continue;
@@ -193,6 +194,7 @@ int main(int argc, char const *argv[])
         {
           uart->carControl(0, PWMSERVOMID); // 控制车辆停止运动
           sleep(1);
+          // waitKey(1);
           printf("-----> [parking] System Exit!!! <-----\n");
           exit(0); // 程序退出
         }
@@ -243,9 +245,9 @@ int main(int argc, char const *argv[])
     if ((scene == Scene::NormalScene || scene == Scene::ObstacleScene) &&
         motion.params.obstacle)
     {
-      if (obstacle.process(tracking, detection->results))
+      if (obstacle.process(tracking, detection->results, icar_predict))
       {
-        //uart->buzzerSound(uart->BUZZER_DING); // 祖传提示音效
+        // uart->buzzerSound(uart->BUZZER_DING); // 祖传提示音效
         scene = Scene::ObstacleScene;
       }
       else
@@ -280,7 +282,7 @@ int main(int argc, char const *argv[])
       if (ctrlCenter.derailmentCheck(tracking)) // 车辆冲出赛道检测（保护车辆）
       {
         uart->carControl(0, PWMSERVOMID); // 控制车辆停止运动
-        sleep(1);
+        usleep(1);
         printf("-----> [rush out] System Exit!!! <-----\n");
         exit(0); // 程序退出
       }
@@ -305,8 +307,8 @@ int main(int argc, char const *argv[])
       else if (scene == Scene::BridgeScene) // 坡道速度
         motion.speed = motion.params.speedBridge;
       else if (scene == Scene::ObstacleScene)
-     
-        motion.speed = motion.params.speedObstacle;// 危险区速度
+
+        motion.speed = motion.params.speedObstacle; // 危险区速度
 
       else if (scene == Scene::RingScene) // 环岛速度
         motion.speed = motion.params.speedRing;
@@ -317,15 +319,16 @@ int main(int argc, char const *argv[])
       /*********************************************************************************/
       detection->drawBox(imgCorrect); // 图像绘制AI结果
       //
-      motion.poseCtrl(ctrlCenter.controlCenter,scene,predict); // 姿态控制（舵机）
+      motion.poseCtrl(ctrlCenter.controlCenter, scene, icar_predict); // 姿态控制（舵机）
       /*********************************************************************************/
       ctrlCenter.drawImage(tracking, imgCorrect); // 图像绘制路径计算结果（控制中心）
       //
       uart->carControl(motion.speed, motion.servoPwm); // 串口通信控制车辆
       /*********************************************************************************/
-      if(flag){
+      if (flag)
+      {
         imshow("show", imgCorrect);
-      waitKey(1);
+        waitKey(1);
       }
       printf("servo:%d,speed:%lf\n", motion.servoPwm, motion.speed);
       //
@@ -352,12 +355,12 @@ int main(int argc, char const *argv[])
       {
       case Scene::NormalScene:
         break;
-      case Scene::CrossScene:                  // [ 十字区 ]
+      case Scene::CrossScene: // [ 十字区 ]
         // crossroad.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
         circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
         putText(imgCorrect, "+", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
         break;
-      case Scene::RingScene:              // [ 环岛 ]
+      case Scene::RingScene: // [ 环岛 ]
         // ring.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
         circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
         putText(imgCorrect, "H", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
