@@ -1,602 +1,766 @@
 #pragma once
-/**
- ********************************************************************************************************
- *                                               示例代码
- *                                             EXAMPLE  CODE
- *
- *                      (c) Copyright 2024; SaiShu.Lcc.; Leo;
- *https://bjsstech.com 版权所属[SASU-北京赛曙科技有限公司]
- *
- *            The code is for internal use only, not for commercial
- *transactions(开源学习,请勿商用). The code ADAPTS the corresponding hardware
- *circuit board(代码适配百度Edgeboard-智能汽车赛事版), The specific details
- *consult the professional(欢迎联系我们,代码持续更正，敬请关注相关开源渠道).
- *********************************************************************************************************
- * @file ring.cpp
- * @author Leo
- * @brief 环岛识别（基于track赛道识别后）
- * @version 0.1
- * @date 2022-02-28
- *
- * @copyright Copyright (c) 2022
- *
- * @note  环岛识别步骤（ringStep）：
- *          1：环岛识别（初始化）
- *          2：入环处理
- *          3：环中处理
- *          4：出环处理
- *          5：出环结束
- */
-
-#include "../../include/common.hpp"
-#include "tracking.cpp"
-#include <cmath>
-#include <fstream>
-#include <iostream>
 #include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
-
-using namespace cv;
+#include "../../include/common.hpp"
+#include "./tracking.cpp"
+#include <iostream>
 using namespace std;
+using namespace cv;
 
-class Ring {
-public:
-  uint16_t counterShield = 0; // 环岛检测屏蔽计数器：屏蔽车库误检测
-
-  /**
-   * @brief 环岛识别初始化|复位
-   *
-   */
-  void reset(void) {
-    ringType = RingType::RingLeft; // 环岛类型
-    ringStep = RingStep::None;     // 环岛处理阶段
-    rowRepairLine = 0;                  // 用于环补线的点（行号）
-    colRepairLine = 0;                  // 用于环补线的点（列号）
-    counterSpurroad = 0;                    // 岔路计数器
-    counterShield = 0;
-    countExitRing = 0;
-  }
-  /**
-   * @brief 环岛识别与行径规划
-   *
-   * @param track 基础赛道识别结果
-   * @param imagePath 赛道路径图像
-   */
-  bool process(Tracking &track, Mat &imagePath) {
-    if (counterShield < 40) {
-      counterShield++;
-      return false;
-    }
-
-    bool ringEnable = false;                    // 判环标志
-    RingType ringTypeTemp = RingType::RingNone; // 环岛类型：临时变量
-    int rowBreakpointLeft = 0;  // 边缘拐点起始行（左）
-    int rowBreakpointRight = 0; // 边缘拐点起始行（右）
-    int colEnterRing = 0;       // 入环点（图像列序号）
-    int rowRepairRingside =
-        track.widthBlock.size() - 1; // 环一侧，补线起点（行号）
-    int rowRepairStraightside =
-        track.widthBlock.size() - 1; // 直道侧，补线起点（行号）
-    int rowYendStraightside =
-        track.widthBlock.size() - 1; // 直道侧，延长补线终点（行号）
-    _index = 0;
-    _ringPoint = POINT(0, 0);
-
-    // 算环用布线的候选点
-    rowRepairLine = max(rowRepairLine - 5, 0);
-    if (ringStep == RingStep::Entering && !track.spurroad.empty()) {
-      if (ringType == RingType::RingLeft && track.pointsEdgeLeft.size() > 20) {
-        for (size_t j = static_cast<size_t>(max(rowRepairLine - 30, 10));
-             j < track.pointsEdgeLeft.size() - 10 && j < static_cast<size_t>(rowRepairLine) + 30 &&
-             track.pointsEdgeLeft[j].x >= track.spurroad[0].x;
-             j++) {
-          if (track.pointsEdgeLeft[j].y > track.pointsEdgeLeft[j - 10].y &&
-              track.pointsEdgeLeft[j].y > track.pointsEdgeLeft[j + 10].y) {
-            rowRepairLine = j;
-            break;
-          }
-        }
-      } else if (ringType == RingType::RingRight &&
-                 track.pointsEdgeRight.size() > 20) {
-        for (size_t j = max(rowRepairLine - 30, 10);
-             j < track.pointsEdgeRight.size() - 10 && j < static_cast<size_t>(rowRepairLine) + 30 &&
-             track.pointsEdgeRight[j].x >= track.spurroad[0].x;
-             j++) {
-          if (track.pointsEdgeRight[j].y < track.pointsEdgeRight[j - 10].y &&
-              track.pointsEdgeRight[j].y < track.pointsEdgeRight[j + 10].y) {
-            rowRepairLine = j;
-            break;
-          }
-        }
-      }
-    }
-
-    // 搜索赛道左右边缘满足图像边沿的最高处
-    for (size_t ii = 0; ii < track.pointsEdgeLeft.size(); ++ii) {
-      rowBreakpointLeft = track.pointsEdgeLeft[ii].x;
-      if (track.pointsEdgeLeft[ii].y > 2)
-        break;
-    }
-    for (size_t ii = 0; ii < track.pointsEdgeRight.size(); ++ii) {
-      rowBreakpointRight = track.pointsEdgeRight[ii].x;
-      if (track.pointsEdgeRight[ii].y < COLSIMAGE - 3)
-        break;
-    }
-
-    // 判环
-    int countWide = 0; // 环岛入口变宽区域行数
-    for (size_t i = 1; i < track.widthBlock.size(); ++i) {
-      if (track.widthBlock[i].y > track.widthBlock[i - 1].y &&
-          track.widthBlock[i].y > COLSIMAGE * 0.6 &&
-          track.widthBlock[i].x > 30 &&
-          ((track.stdevLeft > 120 && track.stdevRight < 50) ||
-           ringStep == RingStep::Entering)) // 搜索突然变宽的路径行数
-      {
-        ++countWide;
-      } else {
-        countWide = 0;
-      }
-      // [1] 入环判断
-      if ((ringStep == RingStep::None || ringStep == RingStep::Entering) &&
-          countWide >= 5 && !track.spurroad.empty()) {
-        if (ringTypeTemp == RingType::RingNone) // 环岛方向判定
-        {
-          int tmp_flag = 0;
-          for (size_t j = 0; j < track.spurroad.size(); j++) {
-            if (track.spurroad[j].x < track.pointsEdgeLeft[i - 5].x) {
-              tmp_flag = 1;
-            }
-          }
-          if (tmp_flag == 0) {
-            countWide = 0;
-            continue;
-          }
-          if (track.pointsEdgeLeft[i].y < track.pointsEdgeLeft[i - 5].y) {
-            ringTypeTemp = RingType::RingLeft; // 环岛类型：左入环
-            colEnterRing = track.pointsEdgeLeft[i - 5].y; // 入环点列号
-            _ringPoint.x = track.pointsEdgeLeft[i - 5].x;
-            _ringPoint.y = track.pointsEdgeLeft[i - 5].y;
-
-            rowRepairLine = i; // 用于环补线的行号
-            colRepairLine = track.pointsEdgeLeft[i].x; // 用于环补线的列号
-          } else if (track.pointsEdgeRight[i].y >
-                     track.pointsEdgeRight[i - 5].y) {
-            ringTypeTemp = RingType::RingRight; // 环岛类型：右入环
-            colEnterRing = track.pointsEdgeRight[i - 5].y; // 入环点列号
-            rowRepairLine = i; // 用于环补线的行号
-            colRepairLine = track.pointsEdgeRight[i].x; // 用于环补线的列号
-          }
-        }
-
-        // 内圆检测
-        if ((ringTypeTemp == RingType::RingLeft &&
-             colEnterRing - track.pointsEdgeLeft[i].y >= 3) ||
-            (ringTypeTemp == RingType::RingRight &&
-             track.pointsEdgeRight[i].y - colEnterRing >= 3)) {
-          ringEnable = true;
-          ringStep = RingStep::Entering;
-          ringType = ringTypeTemp;
-          if (static_cast<size_t>(rowRepairStraightside) == track.widthBlock.size() - 1) {
-            rowRepairStraightside = i - countWide;
-          }
-        } else {
-          countWide = 0;
-        }
-      }
-      /*if(ringStep == RingStep::Entering && ringEnable == false){
-          ringEnable = true;
-          rowRepairStraightside = rowRepairLine;
-      }*/
-
-      if (ringEnable == true && ringStep == RingStep::Entering) {
-        if (ringTypeTemp == RingType::RingLeft) {
-          if (track.pointsEdgeLeft[i].y <= 2 &&
-              i != track.widthBlock.size() - 1) {
-            if (static_cast<size_t>(rowRepairRingside) == track.widthBlock.size() - 1) {
-              rowRepairRingside = i;
-            }
-            rowYendStraightside = track.pointsEdgeLeft[i].x;
-          } else if (static_cast<size_t>(rowRepairRingside) != track.widthBlock.size() - 1) {
-
-            int x = track.pointsEdgeLeft[rowRepairStraightside].x +
-                    (rowYendStraightside -
-                     track.pointsEdgeRight[rowRepairStraightside].x) *
-                        5 / 4;
-            int y = (track.pointsEdgeLeft[rowRepairStraightside].y +
-                     track.pointsEdgeRight[rowRepairStraightside].y) /
-                    2;
-
-            POINT startPoint =
-                track.pointsEdgeRight[rowRepairStraightside]; // 补线：起点
-            POINT midPoint(x, y);                             // 补线：中点
-            POINT endPoint(rowYendStraightside, 0);           // 补线：终点
-
-            vector<POINT> input = {startPoint, midPoint, endPoint};
-            vector<POINT> b_modify = Bezier(0.01, input);
-            track.pointsEdgeLeft.resize(rowRepairRingside);
-            track.pointsEdgeRight.resize(rowRepairStraightside);
-            for (size_t kk = 0; kk < b_modify.size(); ++kk) {
-              track.pointsEdgeRight.emplace_back(b_modify[kk]);
-            }
-            break;
-          }
-        }
-      }
-    }
-
-    int tmp_ttttt = 0;
-    if (ringEnable == false && ringStep == RingStep::Entering) {
-      // 本场没判出环，且没有分叉
-      if (!track.spurroad.empty() && static_cast<size_t>(rowRepairLine) < track.pointsEdgeRight.size() - 1 &&
-          rowBreakpointRight > ROWSIMAGE / 2) {
-
-        rowRepairStraightside = rowRepairLine;
-
-        if (ringType == RingType::RingLeft) {
-          tmp_ttttt = 1;
-          for (size_t i = rowRepairLine; i < track.pointsEdgeLeft.size() - 1;
-               i++) {
-            if (track.pointsEdgeLeft[i].y <= 2 &&
-                i != track.widthBlock.size() - 1) {
-              rowRepairRingside = i;
-              break;
-            }
-          }
-
-          for (size_t i = rowRepairRingside; i < track.pointsEdgeLeft.size() - 1;
-               i++) {
-            if (track.pointsEdgeLeft[i].y <= 2 &&
-                i != track.widthBlock.size() - 1) {
-              rowYendStraightside = track.pointsEdgeLeft[i].x;
-            } else if (static_cast<size_t>(rowRepairRingside) != track.widthBlock.size() - 1) {
-              int x = track.pointsEdgeLeft[rowRepairStraightside].x +
-                      (rowYendStraightside -
-                       track.pointsEdgeRight[rowRepairStraightside].x) *
-                          5 / 4;
-              int y = (track.pointsEdgeLeft[rowRepairStraightside].y +
-                       track.pointsEdgeRight[rowRepairStraightside].y) /
-                      2;
-
-              POINT startPoint =
-                  track.pointsEdgeRight[rowRepairStraightside]; // 补线：起点
-              POINT midPoint(x, y);                   // 补线：中点
-              POINT endPoint(rowYendStraightside, 0); // 补线：终点
-
-              // for (int i = 0; i < track.spurroad.size(); i++)
-              // {
-              //     if (track.spurroad[i].y < startPoint.y &&
-              //     track.spurroad[i].x < startPoint.x)
-              //         endPoint = track.spurroad[i];
-              //     break;
-              // }
-
-              vector<POINT> input = {startPoint, midPoint, endPoint};
-              vector<POINT> b_modify = Bezier(0.02, input);
-              track.pointsEdgeLeft.resize(rowRepairRingside);
-              track.pointsEdgeRight.resize(rowRepairStraightside);
-
-              for (size_t kk = 0; kk < b_modify.size(); ++kk) {
-                track.pointsEdgeRight.emplace_back(b_modify[kk]);
-              }
-              break;
-            }
-          }
-        }
-      }
-      // 本场没判出环，有分叉
-      else {
-        if (ringType == RingType::RingLeft &&
-            track.pointsEdgeRight.size() > 1) {
-          tmp_ttttt = 2;
-          int x_end = track.pointsEdgeRight[track.pointsEdgeRight.size() - 1].x;
-          for (size_t kkk = track.pointsEdgeRight[track.pointsEdgeRight.size() - 1].x;
-            kkk < static_cast<size_t>(track.pointsEdgeRight[track.pointsEdgeRight.size() - 1].x + 50);
-               kkk++) {
-            if (imagePath.at<Vec3b>(kkk, 0)[2] > 0) {
-              x_end = kkk;
-              break;
-            }
-          }
-
-          POINT startPoint(ROWSIMAGE - 10, COLSIMAGE - 1); // 补线：起点
-          POINT endPoint(x_end, 0);                        // 补线：终点
-
-          // for (int i = 0; i < track.spurroad.size(); i++)
-          // {
-          //     if (track.spurroad[i].y < startPoint.y && track.spurroad[i].x <
-          //     startPoint.x)
-          //         endPoint = track.spurroad[i];
-          //     break;
-          // }
-          POINT midPoint =
-              POINT((startPoint.x + endPoint.x) * 0.5,
-                    (startPoint.y + endPoint.y) * 0.5); // 补线：中点
-          vector<POINT> input = {startPoint, midPoint, endPoint};
-          vector<POINT> b_modify = Bezier(0.02, input);
-          track.pointsEdgeRight.resize(0);
-          track.pointsEdgeLeft.resize(0);
-          for (size_t kk = 0; kk < b_modify.size(); ++kk) {
-            track.pointsEdgeRight.emplace_back(b_modify[kk]);
-          }
-        }
-      }
-    }
-    // 环中
-    if (ringStep == RingStep::Entering && track.spurroad.empty() &&
-        counterSpurroad >= 3) {
-      ringStep = RingStep::Inside;
-    }
-    // 出环补线
-    if (ringStep == RingStep::Inside) {
-      if (ringType == RingType::RingLeft) {
-        int rowBreakRight = 0; // 右边缘横坐标连续性(行号)
-        for (size_t i = 0; i < track.pointsEdgeRight.size(); i += 3) {
-          if (track.pointsEdgeRight[i].y <=
-              track.pointsEdgeRight[rowBreakRight].y) {
-            rowBreakRight = i;
-            continue;
-          }
-          if (i > static_cast<size_t>(rowBreakRight) &&
-              track.pointsEdgeRight[i].y -
-                      track.pointsEdgeRight[rowBreakRight].y >
-                  5) {
-            rowBreakpointRight = rowBreakRight;
-            break; // 寻找到出环口：出环补线
-          }
-        }
-        track.pointsEdgeLeft.resize(0); // 单边控制
-
-        if (!track.pointsEdgeRight.empty() &&
-            track.pointsEdgeRight[rowBreakRight].y < COLSIMAGE / 4) {
-          track.pointsEdgeRight.resize(rowBreakRight); // 前80列不需要补线
-        } else if (track.pointsEdgeRight.size() - rowBreakRight > 20) {
-          float slopeTop = 0;    // 斜率：分歧点上半部分
-          float slopeButtom = 0; // 斜率：分歧点下半部分
-          if (track.pointsEdgeRight[rowBreakRight].x !=
-              track.pointsEdgeRight[0].x) {
-            slopeButtom = (track.pointsEdgeRight[rowBreakRight].y -
-                           track.pointsEdgeRight[0].y) *
-                          100 /
-                          (track.pointsEdgeRight[rowBreakRight].x -
-                           track.pointsEdgeRight[0].x);
-          }
-          if (track.pointsEdgeRight[rowBreakRight].x !=
-              track.pointsEdgeRight[rowBreakRight + 20].x) {
-            slopeTop = (track.pointsEdgeRight[rowBreakRight + 20].y -
-                        track.pointsEdgeRight[rowBreakRight].y) *
-                       100 /
-                       (track.pointsEdgeRight[rowBreakRight + 20].x -
-                        track.pointsEdgeRight[rowBreakRight].x);
-          }
-
-          if (slopeButtom * slopeTop <= 0) {
-            rowBreakpointLeft = track.pointsEdgeRight[track.validRowsLeft].x;
-            POINT p_end(rowBreakpointLeft, 0); // 补线终点为左边有效行顶点
-            POINT p_mid(
-                (track.pointsEdgeRight[rowBreakRight].x + rowBreakpointLeft) *
-                    3 / 8,
-                track.pointsEdgeRight[rowBreakRight].y / 2);
-            vector<POINT> input = {track.pointsEdgeRight[rowBreakRight], p_mid,
-                                   p_end};
-            vector<POINT> b_modify = Bezier(0.01, input);
-            track.pointsEdgeRight.resize(rowBreakRight);
-            for (size_t kk = 0; kk < b_modify.size(); ++kk) {
-              track.pointsEdgeRight.emplace_back(b_modify[kk]);
-            }
-          }
-        } else if (track.pointsEdgeRight.size() - rowBreakRight <= 20) {
-          _index = 2;
-          POINT p_end(rowBreakpointLeft, 0);
-          POINT p_start(max(rowBreakpointRight, ROWSIMAGE - 80), COLSIMAGE);
-          POINT p_mid((ROWSIMAGE - 50 + rowBreakpointLeft) / 4, COLSIMAGE / 2);
-          vector<POINT> input = {p_start, p_mid, p_end};
-          vector<POINT> b_modify = Bezier(0.01, input);
-          track.pointsEdgeRight.resize(0);
-          for (size_t kk = 0; kk < b_modify.size(); ++kk) {
-            track.pointsEdgeRight.emplace_back(b_modify[kk]);
-          }
-        }
-      } else {
-        ;
-      }
-      if (max(rowBreakpointLeft, rowBreakpointRight) <
-          ROWSIMAGE / 2) // 出环判定
-      {
-        countExitRing++;
-        if (countExitRing > 5) {
-          countExitRing = 0;
-          ringStep = RingStep::Exiting;
-        }
-      }
-    }
-    // 出环完成
-    else if (ringStep == RingStep::Exiting) {
-      if (ringType == RingType::RingLeft && rowBreakpointLeft < ROWSIMAGE / 2) {
-        POINT p_end(rowBreakpointLeft, 0);
-        POINT p_start(ROWSIMAGE - 50, COLSIMAGE - 1);
-        POINT p_mid((ROWSIMAGE - 50 + rowBreakpointLeft) * 3 / 8,
-                    COLSIMAGE / 2);
-        vector<POINT> input = {p_start, p_mid, p_end};
-        vector<POINT> b_modify = Bezier(0.01, input);
-        track.pointsEdgeRight.resize(0);
-        track.pointsEdgeLeft.resize(0);
-        for (size_t kk = 0; kk < b_modify.size(); ++kk) {
-          track.pointsEdgeRight.emplace_back(b_modify[kk]);
-        }
-        if (rowBreakpointRight > ROWSIMAGE / 2) {
-          countExitRing++;
-          if (countExitRing > 3) {
-            countExitRing = 0;
-            ringStep = RingStep::Finish;
-          }
-        }
-      }
-    }
-
-    // //清掉边界的edge点
-    // vector<POINT> v_temp, v_temp2;
-    // for (int jj = 0; jj < track.pointsEdgeLeft.size(); ++jj)
-    // {
-    //     if (track.pointsEdgeLeft[jj].y > 2)
-    //     {
-    //         v_temp.push_back(track.pointsEdgeLeft[jj]);
-    //     }
-    //     else
-    //     {
-    //         if (jj > track.pointsEdgeLeft.size() * 9 / 10)
-    //         {
-    //             break;
-    //         }
-    //     }
-
-    //     if (track.pointsEdgeLeft[jj].y > COLSIMAGE * 9 / 10 && jj <
-    //     track.pointsEdgeLeft.size() - 5)
-    //     {
-    //         break;
-    //     }
-    // }
-    // track.pointsEdgeLeft = v_temp;
-    // if (track.pointsEdgeLeft.size() < 5)
-    // {
-    //     track.pointsEdgeLeft.resize(0);
-    // }
-
-    // for (int jj = 0; jj < track.pointsEdgeRight.size(); ++jj)
-    // {
-    //     if (track.pointsEdgeRight[jj].y < COLSIMAGE - 3)
-    //     {
-    //         v_temp2.push_back(track.pointsEdgeRight[jj]);
-    //     }
-    //     else
-    //     {
-    //         if (jj > track.pointsEdgeRight.size() * 9 / 10)
-    //         {
-    //             break;
-    //         }
-    //     }
-    //     if (track.pointsEdgeRight[jj].y < COLSIMAGE / 10 && jj <
-    //     track.pointsEdgeRight.size() - 5)
-    //     {
-    //         break;
-    //     }
-    // }
-    // track.pointsEdgeRight = v_temp2;
-    // if (track.pointsEdgeRight.size() < 5)
-    // {
-    //     track.pointsEdgeRight.resize(0);
-    // }
-
-    // 出环，切回正常循迹
-    if (ringStep == RingStep::Finish) {
-      if (track.pointsEdgeLeft.size() > 30 &&
-          track.pointsEdgeRight.size() > 30 &&
-          abs(track.pointsEdgeRight.size() - track.pointsEdgeLeft.size() <
-              track.pointsEdgeRight.size() / 3)) {
-        countExitRing++;
-        if (countExitRing > 20)
-          ringStep = RingStep::None;
-      }
-    }
-
-    if (track.spurroad.empty())
-      counterSpurroad++;
-    else
-      counterSpurroad = 0;
-
-    //--------------------------------临时测试----------------------------------
-    _ringStep = ringStep;
-    _ringEnable = ringEnable;
-    _tmp_ttttt = tmp_ttttt;
-
-    // 返回识别结果
-    if (ringStep == RingStep::None)
-      return false;
-    else
-      return true;
-  }
-
-  /**
-   * @brief 绘制环岛识别图像
-   *
-   * @param ringImage 需要叠加显示的图像
-   */
-  void drawImage(Tracking track, Mat &ringImage) {
-    for (size_t i = 0; i < track.pointsEdgeLeft.size(); i++) {
-      circle(ringImage,
-             Point(track.pointsEdgeLeft[i].y, track.pointsEdgeLeft[i].x), 2,
-             Scalar(0, 255, 0), -1); // 绿色点
-    }
-
-    for (size_t i = 0; i < track.pointsEdgeRight.size(); i++) {
-      circle(ringImage,
-             Point(track.pointsEdgeRight[i].y, track.pointsEdgeRight[i].x), 2,
-             Scalar(0, 255, 255), -1); // 黄色点
-    }
-
-    for (size_t i = 0; i < track.spurroad.size(); i++) {
-      circle(ringImage, Point(track.spurroad[i].y, track.spurroad[i].x), 5,
-             Scalar(0, 0, 255), -1); // 红色点
-    }
-
-    putText(ringImage,
-            to_string(_ringStep) + " " + to_string(_ringEnable) + " " +
-                to_string(_tmp_ttttt),
-            Point(COLSIMAGE - 80, ROWSIMAGE - 20), cv::FONT_HERSHEY_TRIPLEX,
-            0.3, cv::Scalar(0, 0, 255), 1, CV_AA);
-
-    putText(ringImage, to_string(_index), Point(80, ROWSIMAGE - 20),
-            cv::FONT_HERSHEY_TRIPLEX, 0.3, cv::Scalar(0, 0, 255), 1, CV_AA);
-
-    putText(ringImage,
-            to_string(track.validRowsRight) + " | " +
-                to_string(track.stdevRight),
-            Point(COLSIMAGE - 100, ROWSIMAGE - 50), FONT_HERSHEY_TRIPLEX, 0.3,
-            Scalar(0, 0, 255), 1, CV_AA);
-    putText(ringImage,
-            to_string(track.validRowsLeft) + " | " + to_string(track.stdevLeft),
-            Point(30, ROWSIMAGE - 50), FONT_HERSHEY_TRIPLEX, 0.3,
-            Scalar(0, 0, 255), 1, CV_AA);
-
-    putText(ringImage, "[7] RING - ENABLE", Point(COLSIMAGE / 2 - 30, 10),
-            cv::FONT_HERSHEY_TRIPLEX, 0.3, cv::Scalar(0, 255, 0), 1, CV_AA);
-    circle(ringImage, Point(_ringPoint.y, _ringPoint.x), 4, Scalar(255, 0, 0),
-           -1); // 红色点
-  }
-
+/*
+ * V1.0
+ * 环岛识别与行径规划
+ * @param track 基础赛道识别结果
+ * @return bool 是否成功识别环岛
+ * 环岛的初步识别与判断：
+ * 1. 老套路先检查边线数量够不够，不够图像一半就false
+ * 2. 这里要加一个判断，左右不可能同时有角点，左右也不可能同时丢线（这个会被起始点爬线影响，先不加入判断），如果有同时角点则false
+ * 3. 根据角点出现的一侧，判断是左环还是右环，同时角点的数量起码要大于等于2个，小于两个就false
+ * 4. 进行圆环一定也会有丢线，如果没丢线也false
+ * ===============================================================================================================
+ * 到这里已经判断圆环是左是右了，接下来是圆环的两个整体流程：
+ * 1. 初入圆环-》将入圆环-》进入圆环-》出圆环
+ * 2. 将入圆环-》进入圆环-》出圆环-》完成圆环
+ * 注意事项：
+ * 1.完成第一个流程的关键在于，能不能找到出环口的点，和内环的点，将状态推入下一步
+ * 2.完成第二个流程的关键在于，能不能找到内环的点，和入环口的点，补线将车送进环内，把状态推入下一步
+ * 3.环岛的补线逻辑有斜率补线和贝塞尔曲线补线两种方式，测试用斜率补线，实际用贝塞尔曲线补线，更侧重用贝塞尔曲线补线
+ * ===============================================================================================================
+ * 无状态
+ * 选取角点的方式：
+ * 1.先找上下角点，上角点的判断为当前点的下连续n行为补线点，下角点的判断为当前点的上连续n行为补线点
+ * 2.若没找到上下角点，上角点的标记位置为0，下角点的标记位置为单侧角点数量-1
+ * 3.然后通过上下角点标记的范围遍历角点数组找中间角点，判断中间角点的方式为：当前点上连续n行y递减然后到连续补线处，当前点下连续n行y递减然后到连续补线处
+ * 4.这个中间角点采取隔几个点取一个点的方式，一直递减，然后到达连续补线处时一个一个采用连续n次
+ * 5.初入圆环识别成功在于有无找到下角点和中间角点，下中用斜率补线，而上角点的识别属于是顺便，方便将入圆环的处理，进入初入圆环的状态
+ * 6.如果识别到上角点和中间角点，则与中间角点同一行的另外一侧边线点作为补线的起点中补点，上中补点补线，进入将入圆环状态
+ * 7.如果没有识别到中间点则false
+ * ===============================================================================================================
+ * 初入圆环
+ * 1.找中下角点，如果连续找到中下角点m次，即m帧，则认为找到了中下角点，中下角点补线
+ * 2.当识别不到下角点时，补线结束，将状态推入将入圆环状态
+ * ===============================================================================================================
+ * 将入圆环
+ * 1.找中上角点，如果连续找到中上角点m次，即m帧，则认为找到了中上角点
+ * 2.与中角点同一行的另一侧边线点选取为补线的起点，称为中补点，上角点与中补点补线 ****（这里测试先选用斜率补线，实际改为贝塞尔曲线）****
+ * 3.当中角点识别不到时，以防车没有进入环内，采用另一侧起始点与上角点补线，直到上角点识别不到后，将状态推入进入圆环状态
+ * ===============================================================================================================
+ * 进入圆环，就正常走
+ * ===============================================================================================================
+ * 出环
+ * 1.入环一侧的另外一侧一定是出环侧，选择出环侧拐点中y值最小的点作为出环点补点的起始点，用贝塞尔曲线补线到入环侧第一个点的位置
+ * 2.出环侧拐点消失后，选择出环侧起始点补到入环侧第一个点的位置
+ * 3.基于第二步感觉可以加个判断，就是让第二步一直补到看见入环口第一个角点处，看见后就立马第一个角点与入环侧起始点补线，待入环侧点消失后，结束整个圆环，将圆环状态初始化
+ * ===============================================================================================================
+ * 注意事项：
+ * 1.如果只代入正常圆环识别的话，理论上是可行的，但是由于中间角点的判断与斜入十字的L角点判断有些类似，会产生误判
+ * 2.正入圆环道路的特点：一侧有角点且丢线，另一侧无角点且丢线，没角点的那侧即使有丢线，也是因为起始行爬线导致的，理论上可以用阈值限制
+ * 3.通过观察可知，内圆上由于不受点覆盖的影响，它的点集分布是比较均匀的，而L型角点呈现的是上下部分不均匀的显示
+ */
+class Ring
+{
 private:
-  uint16_t counterSpurroad = 0; // 岔路计数器
-  // 临时测试用参数
-  int _ringStep;
-  int _ringEnable;
-  int _tmp_ttttt;
-  int _index = 0;
-  int countExitRing = 0;
-  POINT _ringPoint = POINT(0, 0);
+    enum RingType
+    {
+        None = 0,
+        RingLeft, // 左入环
+        RingRight // 右入环
+    };
+    enum RingStep
+    {
+        NoRing = 0, // 没判断圆环状态
+        IsRing,     // 初入圆环
+        Entering,   // 将入圆环
+        Inside,     // 进入圆环
+        Exiting,    // 出圆环
+        Finish      // 结束
+    };
+    RingStep nowType = RingStep::NoRing;         // 当前状态
+    RingType ringSide = RingType::None;          // 圆环侧
+    POINT RUPoint, RZPoint, RDPoint, ROPoint;    // 分别为入环上角点，入环中角点，入环下角点，出环角点
+    bool textDeBug = false;                      // 日志输出debug开关
+    int diuYu = 20;                              // 丢线允许的阈值
+    int zhen = 3;                                // 连续出现帧数的阈值
+    int ZDcount = 0, UDcount = 0, TypeCount = 0; // 当前中下角点连续出现的帧数，中上角点连续出现的帧数
+    int JieLeft = 1, JieRight = COLSIMAGE - 2;   // 图像左右两边的边界
+    int jian = 10;                               // 判断上下角点前后的间隔
+    int width1 = 10, width2 = 30;                // 宽度阈值
+    int search = 30;                             // 贴边搜索的范围
+    int tieCount = 3;                            // 连续贴边的次数
+    bool checkStatus = false;                    // 用来保护已经检查的状态
+    bool out_flag = false;
 
-  /**
-   * @brief 环岛类型
-   *
-   */
-  enum RingType {
-    RingNone = 0, // 未知类型
-    RingLeft,     // 左入环岛
-    RingRight     // 右入环岛
-  };
+    /**
+     * @brief 限定范围
+     * @param now 当前值
+     * @param min_num 最小值
+     * @param max_num 最大值
+     */
+    int defence(const int &now, const int &min_num, const int &max_num)
+    {
+        int x = now;
+        if (x < min_num)
+            x = min_num;
+        else if (x > max_num)
+            x = max_num;
+        return x;
+    }
 
-  /**
-   * @brief 环岛运行步骤/阶段
-   *
-   */
-  enum RingStep {
-    None = 0, // 未知类型
-    Entering, // 入环
-    Inside,   // 环中
-    Exiting,  // 出环
-    Finish    // 环任务结束
-  };
+    /**
+     * @brief 找上角点
+     * @param edge 赛道边线
+     * @param spurroad 角点集
+     * @param GStart 角点起始搜索下标
+     * @param GEnd 角点终止搜索下标
+     * @param EP 边线集的偏移量
+     * @param p 存储找到角点位置
+     * @param L 经过初步判断后，退出函数前连续贴边的x在图像坐标
+     * @param bian 贴边的数值
+     * @return 返回找到角点的下标位置，如果没有就返回-1
+     */
+    int findUp(const vector<POINT> &edge, const vector<POINT> &spurroad, const int &GStart, const int &GEnd, const int &EP, POINT &p, int &L, const int &bian)
+    {
+        int findFlag = -1;
+        // 初步找点
+        for (int i = GStart; i < GEnd; i++)
+        {
+            // 当前角点的下标，当前角点往前jian边线集的下标，当前角点往后jian边线集的下标
+            int here = spurroad[i].x, pre = spurroad[i].x - jian, next = spurroad[i].x + jian;
+            // 防止越界
+            here = defence(here - EP, 0, edge.size() - 1);
+            pre = defence(pre - EP, 0, edge.size() - 1);
+            next = defence(next - EP, 0, edge.size() - 1);
+            // 得到点y值
+            int ah = edge[here].y, an = edge[next].y, ap = edge[pre].y;
+            ah = defence(ah, 1, COLSIMAGE - 2);
+            an = defence(an, 1, COLSIMAGE - 2);
+            ap = defence(ap, 1, COLSIMAGE - 2);
+            if (textDeBug)
+            {
+                cout << endl;
+                printf("here=%4d,pre=%4d,next=%4d\n", here, pre, next);
+                printf("ah=%4d,ap=%4d,an=%4d\n", ah, ap, an);
+                printf("abs(ah-ap)=%4d,abs(ah-an)=%4d,width1=%4d,width2=%4d", abs(ah - ap), abs(ah - an), width1, width2);
+            }
+            if (abs(ah - ap) <= width1 && abs(ah - an) >= width2)
+            {
+                p = POINT(here + EP, ah);
+                findFlag = i;
+                break;
+            }
+        }
+        if (findFlag == -1)
+        {
+            L = edge[0].x;
+            if (textDeBug)
+                cout << "找上角点的初步判断没成功" << endl;
+            return findFlag;
+        }
+        // 进一步判断这个角点是否有丢线
+        int c = 0;
+        for (int i = 1; i <= search; i++)
+        {
+            int x = defence(spurroad[findFlag].x - EP + i, 0, edge.size() - 1);
+            int y = defence(edge[x].y, 1, COLSIMAGE - 2);
+            if (y == bian)
+                c++;
+            else
+                c = 0;
+            if (c >= tieCount)
+            {
+                L = x;
+                return findFlag;
+            }
+        }
+        L = edge[0].x;
+        if (textDeBug)
+            cout << "找上角点的第二次判断没成功" << endl;
+        return -1;
+    }
 
-  RingType ringType = RingType::RingLeft; // 环岛类型
-  RingStep ringStep = RingStep::None;     // 环岛处理阶段
-  int rowRepairLine = 0;                  // 用于环补线的点（行号）
-  int colRepairLine = 0;                  // 用于环补线的点（列号）
+    /**
+     * @brief 判断是否分布是否连续
+     * @param edge 边线集
+     * @param index 起始下标
+     * @param L x坐标最小值
+     * @param E x坐标最大值
+     * @return 不在限制范围就false，不满足变化趋势连续也false，满足变化趋势连续为true
+     */
+    bool JudgeDeFu(const vector<POINT> &edge, const int &index, const int &L, const int &E)
+    {
+        if (edge[index].x <= L || edge[index].x >= E)
+        {
+            if (textDeBug)
+                printf("\nx=%4d,不在限制%4d~%4d范围\n", index, L, E);
+            return false;
+        }
+        if (textDeBug)
+        {
+            cout << endl
+                 << "JudgeDeFu" << endl;
+            cout << "L = " << L << ", E = " << E << endl;
+            cout << "Before 5: ";
+            for (int i = 1; i <= 5; i++)
+                cout << edge[index - i].y << " ";
+            cout << endl
+                 << "Zhong:" << edge[index].y << endl;
+            cout << "After 5: ";
+            for (int i = 1; i <= 5; i++)
+                cout << edge[index + i].y << ' ';
+            cout << endl
+                 << (index + 5 < edge.size() && index - 5 >= 0 && abs(abs(edge[index - 1].y - edge[index].y) - abs(edge[index + 1].y - edge[index].y)) <= 1 && abs(abs(edge[index - 2].y - edge[index - 1].y) - abs(edge[index + 1].y - edge[index + 2].y)) <= 1 && abs(abs(edge[index - 2].y - edge[index - 3].y) - abs(edge[index + 3].y - edge[index + 2].y)) <= 1 && abs(abs(edge[index - 4].y - edge[index - 3].y) - abs(edge[index + 4].y - edge[index + 3].y)) <= 1 && abs(abs(edge[index - 5].y - edge[index - 4].y) - abs(edge[index + 5].y - edge[index + 4].y)) <= 1) << endl;
+        }
+        return (index + 5 < edge.size() && index - 5 >= 0 && abs(abs(edge[index - 1].y - edge[index].y) - abs(edge[index + 1].y - edge[index].y)) <= 1 && abs(abs(edge[index - 2].y - edge[index - 1].y) - abs(edge[index + 1].y - edge[index + 2].y)) <= 1 && abs(abs(edge[index - 2].y - edge[index - 3].y) - abs(edge[index + 3].y - edge[index + 2].y)) <= 1 && abs(abs(edge[index - 4].y - edge[index - 3].y) - abs(edge[index + 4].y - edge[index + 3].y)) <= 1 && abs(abs(edge[index - 5].y - edge[index - 4].y) - abs(edge[index + 5].y - edge[index + 4].y)) <= 1);
+    }
+
+    /**
+     * @brief 找内圆中点
+     * @param edge 边线集
+     * @param spurroad 角点集
+     * @param GStart 角点集起始下标
+     * @param GEnd 角点集终止下标
+     * @param p 存储角点信息
+     * @param L 图像限制x最小值
+     * @param E 图像限制x最大值
+     * @param bian 图像贴边数值
+     * @return 满足条件的情况下找到内圆中点为true，其余false
+     */
+    int findZhong(const vector<POINT> &edge, const vector<POINT> &spurroad, const int &GStart, const int &GEnd, const int &EP, POINT &p, int &L, int &E, const int &bian)
+    {
+        // 缩小一下坐标范围，如果缩小一下L与E相遇，说明就没有内环
+        while (L < edge.size() && L <= E && edge[L].y == bian)
+            L++;
+        if (L >= E)
+        {
+            if (textDeBug)
+                printf("L增大时,L与E相遇,L=%4d,E=%4d", L, E);
+            return -1;
+        }
+        while (E >= 0 && E >= L && edge[E].y == bian)
+            E--;
+        if (L >= E)
+        {
+            if (textDeBug)
+                printf("E减小时,L与E相遇,L=%4d,E=%4d", L, E);
+            return -1;
+        }
+        // 开始判内环点
+        for (int i = GStart; i < GEnd; i++)
+        {
+            int x = spurroad[i].x - EP;
+            if (JudgeDeFu(edge, x, L, E))
+            {
+                p = POINT(x, edge[x].y);
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * @brief 找下角点
+     * @param edge 赛道边线
+     * @param spurroad 角点集
+     * @param GStart 角点起始搜索下标
+     * @param GEnd 角点终止搜索下标
+     * @param EP 边线集的偏移量
+     * @param p 存储找到角点位置
+     * @param L 经过初步判断后，退出函数前连续贴边的x在图像坐标
+     * @param bian 贴边的数值
+     * @return 返回找到角点的下标位置，如果没有就返回-1
+     */
+    int findDown(const vector<POINT> &edge, const vector<POINT> &spurroad, const int &GStart, const int &GEnd, const int &EP, POINT &p, int &L, const int &bian)
+    {
+        int findFlag = -1;
+        for (int i = GStart; i >= GEnd; i--)
+        {
+            // 当前角点的下标，当前角点往前jian边线集的下标，当前角点往后jian边线集的下标
+            int here = spurroad[i].x, pre = spurroad[i].x - jian, next = spurroad[i].x + jian;
+            // 防止越界
+            here = defence(here - EP, 0, edge.size() - 1);
+            pre = defence(pre - EP, 0, edge.size() - 1);
+            next = defence(next - EP, 0, edge.size() - 1);
+            // 得到点y值
+            int ah = edge[here].y, an = edge[next].y, ap = edge[pre].y;
+            ah = defence(ah, 1, COLSIMAGE - 2);
+            an = defence(an, 1, COLSIMAGE - 2);
+            ap = defence(ap, 1, COLSIMAGE - 2);
+            if (textDeBug)
+            {
+                cout << endl;
+                printf("here=%4d,pre=%4d,next=%4d\n", here, pre, next);
+                printf("ah=%4d,ap=%4d,an=%4d\n", ah, ap, an);
+                printf("abs(ah-ap)=%4d,abs(ah-an)=%4d,width1=%4d,width2=%4d", abs(ah - ap), abs(ah - an), width1, width2);
+            }
+            if (abs(ah - an) <= width1 && abs(ah - ap) >= width2)
+            {
+                p = POINT(here + EP, ah);
+                findFlag = i;
+                break;
+            }
+        }
+        if (findFlag == -1)
+        {
+            L = edge.back().x;
+            if (textDeBug)
+                cout << "找下角点的初步判断没成功" << endl;
+            return findFlag;
+        }
+        // 进一步判断这个角点是否有丢线
+        int c = 0;
+        for (int i = 1; i <= search; i++)
+        {
+            int x = defence(spurroad[findFlag].x - EP - i, 0, edge.size() - 1);
+            int y = defence(edge[x].y, 1, COLSIMAGE - 2);
+            if (y == bian)
+                c++;
+            else
+                c = 0;
+            if (c >= tieCount)
+            {
+                L = x;
+                return findFlag;
+            }
+        }
+        L = edge.back().x;
+        if (textDeBug)
+            cout << "找下角点的第二次判断没成功" << endl;
+        return -1;
+    }
+
+    /**
+     * @brief 补线
+     * @param edge 边线集
+     * @param start 补线的起始点
+     * @param end 补线的终点
+     */
+    void addLine(vector<POINT> &edge, const POINT &start, POINT &end)
+    {
+        // 斜率
+        float k = (end.y - start.y) * 1.0 / (end.x - start.x);
+        // 补线
+        for (int i = start.x; i <= end.x; i++)
+        {
+            if (out_flag)
+                edge[i].x = i;
+            edge[i].y = round(start.y + k * (i - start.x));
+        }
+    }
+
+    /**
+     * @brief 初步检测当前图像条件
+     */
+    bool is_OK(Tracking &track)
+    {
+        // 第一个边线点集不够
+        if (track.pointsEdgeLeft.size() < ROWSIMAGE / 2 || track.pointsEdgeRight.size() < ROWSIMAGE / 2)
+        {
+            if (textDeBug)
+                cout << "左右边线数量不够" << endl;
+            return false;
+        }
+        // // 第二个没丢线直接清，只允许一边丢线，另一边丢线只能是阈值内允许
+        // // if ((track.diuLeft <= diuYu && track.diuRight <= diuYu) || (track.diuLeft > diuYu && track.diuRight > diuYu))
+        // if (track.diuLeft < diuYu && track.diuRight <= diuYu)
+        // {
+        //     if (textDeBug)
+        //         cout << "丢线不符合要求" << endl;
+        //     return false;
+        // }
+        // // 第三个角点数量同时小于等于1或同时都大于1一块清
+        // // if ((track.LGnum <= 1 && track.RGnum <= 1) || (track.LGnum > 1 && track.RGnum > 1))
+        // if (track.LGnum <= 1 && track.RGnum <= 1)
+        // {
+        //     if (textDeBug)
+        //         cout << "角点数量不符合要求" << endl;
+        //     return false;
+        // }
+        /* 这里感觉限制的有点刻意了，虽然在看见环的情况下，一边几乎不丢线 */
+        if ((track.diuLeft >= diuYu && track.LGnum >= 2 && track.diuLeft > track.diuRight) || (track.diuRight >= diuYu && track.RGnum >= 2 && track.diuRight > track.diuLeft))
+            return true;
+          cout<<"不满足条件"<<endl;
+        return false;
+    }
+
+    bool findUZD(Tracking &track, int &up_index, int &down_index, int &zhong_index)
+    {
+        int L, E;
+        // 左环
+        if (ringSide == RingType::RingLeft)
+        {
+            up_index = findUp(track.pointsEdgeLeft, track.spurroad, 0, track.LGnum, track.LP, RUPoint, L, 1);
+            down_index = findDown(track.pointsEdgeLeft, track.spurroad, track.LGnum - 1, max(up_index, 0), track.LP, RDPoint, E, 1);
+        }
+        // 右环
+        else
+        {
+            up_index = findUp(track.pointsEdgeRight, track.spurroad, track.LGnum, track.spurroad.size(), track.RP, RUPoint, L, COLSIMAGE - 2);
+            down_index = findDown(track.pointsEdgeRight, track.spurroad, track.spurroad.size() - 1, max(down_index, track.LGnum), track.RP, RDPoint, E, COLSIMAGE - 2);
+        }
+        if (textDeBug)
+        {
+            printf("L = %3d, E = %3d\n", L, E);
+            printf("up_index = %3d, down_index = %3d\n", up_index, down_index);
+        }
+        // 上角点和下角点同时没有，或者下角点比上角点大，或者上下角点下标相邻
+        // if ((up_index == -1 && down_index == -1) || ((down_index >= 0 && up_index >= 0 && down_index <= up_index) || (down_index >= 0 && up_index >= 0 && down_index - up_index == 1)))
+        if ((up_index == -1 && down_index == -1) || (up_index >= 0 && down_index >= 0 && abs(up_index - down_index) == 1))
+        {
+            if (textDeBug)
+                printf("上下角点不满足条件,up_index=%4d,down_index=%4d", up_index, down_index);
+            ringSide = RingType::None;
+            return false;
+        }
+        // 最后找中点
+        if (ringSide == RingType::RingLeft)
+        {
+            zhong_index = findZhong(track.pointsEdgeLeft, track.spurroad, max(up_index, 0), (down_index == -1 ? track.LGnum : down_index), track.LP, RZPoint, L, E, 1);
+        }
+        else
+        {
+            zhong_index = findZhong(track.pointsEdgeRight, track.spurroad, max(up_index, track.LGnum), (down_index == -1 ? track.spurroad.size() : down_index), track.RP, RZPoint, L, E, COLSIMAGE - 2);
+        }
+        if (textDeBug)
+            printf("zhong_index = %3d\n", zhong_index);
+        if (zhong_index == -1)
+        {
+            if (textDeBug)
+                cout << "没有找到内圆中点" << endl;
+            return false;
+        }
+        return true;
+    }
+
+    bool findOut(const vector<POINT> &edge, const vector<POINT> &spurroad, const int &EP, const int &GStart, const int &GEnd)
+    {
+        for (int i = GStart; i >= GEnd; i--)
+        {
+            int here = spurroad[i].x, pre = spurroad[i].x - jian, next = spurroad[i].x + jian;
+            here = defence(here - EP, 0, edge.size() - 1);
+            pre = defence(pre - EP, 0, edge.size() - 1);
+            next = defence(next - EP, 0, edge.size() - 1);
+            int ah, ap, an;
+            ah = defence(edge[here].y, 1, COLSIMAGE - 2);
+            ap = defence(edge[pre].y, 1, COLSIMAGE - 2);
+            an = defence(edge[next].y, 1, COLSIMAGE - 2);
+            if (textDeBug)
+            {
+                cout << endl;
+                printf("here=%4d,pre=%4d,next=%4d\n", here, pre, next);
+                printf("ah=%4d,ap=%4d,an=%4d\n", ah, ap, an);
+            }
+            if (ah < ap && ah < an)
+            {
+                ROPoint = POINT(here + EP, ah);
+                return i;
+            }
+        }
+        return -1;
+    }
+    // void OutBu(vector<POINT> &edgeW, vector<POINT> &edgeN, const int &)
+    // {
+    // }
+
+public:
+    bool process(Tracking &track)
+    {
+        if (textDeBug)
+            cout << endl
+                 << "开始识别圆环," << nowType << endl;
+        int up_index = -1, down_index = -1, zhong_index = -1, out_index = -1;
+        // 没识别圆环
+        if (nowType == RingStep::NoRing)
+        {
+            // 1.识别第一步判环条件不够直接清
+            if (!is_OK(track))
+                return false;
+            // 2.判环方向
+            if (track.LGnum > track.RGnum)
+                ringSide = RingType::RingLeft;
+            else
+                ringSide = RingType::RingRight;
+            if (textDeBug)
+                cout << "现在判断为" << (ringSide == RingType::RingLeft ? "左环" : "右环") << endl;
+            // 3.开始找点
+            // 先找上下角点，上下角点如果都没有也是false
+            if (!findUZD(track, up_index, down_index, zhong_index))
+                return false;
+            // 4.判阶段
+            if (down_index != -1 && zhong_index != -1)
+                ZDcount++;
+            else
+                ZDcount = 0;
+            if (zhong_index != -1 && up_index != -1)
+                UDcount++;
+            else
+                UDcount = 0;
+            if (ZDcount >= zhen)
+            {
+                nowType = RingStep::IsRing;
+                TypeCount = 0;
+                return true;
+            }
+            else if (UDcount >= zhen)
+            {
+                nowType = RingStep::Entering;
+                TypeCount = 0;
+                return true;
+            }
+            return false;
+        }
+        // 初入圆环
+        else if (nowType == RingStep::IsRing)
+        {
+            // if (!is_OK(track))
+            //     return false;
+            if (ringSide == RingType::RingLeft)
+            {
+                if (track.pointsEdgeLeft.size() < ROWSIMAGE / 2 || track.LGnum == 0)
+                {
+                    TypeCount = 0;
+                    return false;
+                }
+            }
+            else
+            {
+                if (track.pointsEdgeRight.size() < ROWSIMAGE / 2 || track.RGnum == 0)
+                {
+                    TypeCount = 0;
+                    return false;
+                }
+            }
+            int L, E;
+            // 找一手上中下三点，虽然主要是补中下的线，但是如果看见上面的也可以蛮补一手
+            // 左环
+            if (ringSide == RingType::RingLeft)
+            {
+                up_index = findUp(track.pointsEdgeLeft, track.spurroad, 0, track.LGnum, track.LP, RUPoint, L, 1);
+                down_index = findDown(track.pointsEdgeLeft, track.spurroad, track.LGnum - 1, max(up_index, 0), track.LP, RDPoint, E, 1);
+            }
+            // 右环
+            else
+            {
+                up_index = findUp(track.pointsEdgeRight, track.spurroad, track.LGnum, track.spurroad.size(), track.RP, RUPoint, L, COLSIMAGE - 2);
+                down_index = findDown(track.pointsEdgeRight, track.spurroad, track.spurroad.size() - 1, max(track.LGnum, up_index), track.RP, RDPoint, E, COLSIMAGE - 2);
+            }
+            if (textDeBug)
+            {
+                printf("L = %3d, E = %3d\n", L, E);
+                printf("up_index = %3d, down_index = %3d\n", up_index, down_index);
+            }
+
+            // 最后找中点
+            if (ringSide == RingType::RingLeft)
+            {
+                zhong_index = findZhong(track.pointsEdgeLeft, track.spurroad, max(up_index, 0), (down_index == -1 ? track.LGnum : down_index), track.LP, RZPoint, L, E, 1);
+            }
+            else
+            {
+                zhong_index = findZhong(track.pointsEdgeRight, track.spurroad, max(up_index, track.LGnum), (down_index == -1 ? track.spurroad.size() : down_index), track.RP, RZPoint, L, E, COLSIMAGE - 2);
+            }
+            if (textDeBug)
+                printf("zhong_index = %3d\n", zhong_index);
+            if (down_index == -1)
+            {
+                TypeCount++;
+            }
+            else
+            {
+                TypeCount = 0;
+            }
+            if (TypeCount >= zhen)
+            {
+                TypeCount = 0;
+                nowType = RingStep::Entering;
+                return true;
+            }
+            if (zhong_index != -1)
+            {
+                if (ringSide == RingType::RingLeft)
+                {
+                    addLine(track.pointsEdgeLeft, track.spurroad[zhong_index], track.spurroad[down_index]);
+                }
+                else
+                {
+                    addLine(track.pointsEdgeRight, track.spurroad[zhong_index], track.spurroad[down_index]);
+                }
+                if (up_index != -1)
+                {
+                    if (ringSide == RingType::RingLeft)
+                    {
+                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.pointsEdgeRight[track.spurroad[zhong_index].x - track.RP]);
+                    }
+                    else
+                    {
+                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.pointsEdgeLeft[track.spurroad[zhong_index].x - track.LP]);
+                    }
+                }
+            }
+        }
+        // 将入圆环
+        else if (nowType == RingStep::Entering)
+        {
+            // if (!is_OK(track))
+            //     return false;
+            if (ringSide == RingType::RingLeft)
+            {
+                if (track.pointsEdgeLeft.size() < ROWSIMAGE / 2)
+                {
+                    TypeCount = 0;
+                    return false;
+                }
+            }
+            else
+            {
+                if (track.pointsEdgeRight.size() < ROWSIMAGE / 2)
+                {
+                    TypeCount = 0;
+                    return false;
+                }
+            }
+            int L;
+            if (ringSide == RingType::RingLeft)
+            {
+                up_index = findUp(track.pointsEdgeLeft, track.spurroad, 0, track.LGnum, track.LP, RUPoint, L, 1);
+                zhong_index = findZhong(track.pointsEdgeLeft, track.spurroad, max(up_index, 0), track.LGnum, track.LP, RUPoint, L, track.pointsEdgeLeft.back().x, 1);
+            }
+            else
+            {
+                up_index = findUp(track.pointsEdgeRight, track.spurroad, track.LGnum, track.spurroad.size(), track.RP, RUPoint, L, COLSIMAGE - 2);
+                zhong_index = findZhong(track.pointsEdgeRight, track.spurroad, max(up_index, track.LGnum), track.spurroad.size(), track.RP, RZPoint, L, track.pointsEdgeRight.back().x, COLSIMAGE - 2);
+            }
+            if (zhong_index == -1 && up_index == -1)
+            {
+                TypeCount++;
+            }
+            else
+            {
+                TypeCount = 0;
+            }
+            if (TypeCount >= zhen)
+            {
+                TypeCount = 0;
+                nowType = RingStep::Inside;
+                return true;
+            }
+            if (up_index != -1)
+            {
+
+                if (zhong_index != -1)
+                {
+                    if (ringSide == RingType::RingLeft)
+                    {
+                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.pointsEdgeRight[track.spurroad[zhong_index].x - track.RP]);
+                    }
+                    else
+                    {
+                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.pointsEdgeLeft[track.spurroad[zhong_index].x - track.LP]);
+                    }
+                }
+                else if (zhong_index == -1)
+                {
+                    if (ringSide == RingType::RingLeft)
+                    {
+                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.R_Start);
+                    }
+                    else
+                    {
+                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.L_Start);
+                    }
+                }
+            }
+        }
+        // 进入圆环
+        else if (nowType == RingStep::Inside)
+        {
+            if (ringSide == RingType::RingLeft)
+            {
+                if (track.RGnum == 0)
+                    out_index = -1;
+                else
+                    out_index = findOut(track.pointsEdgeRight, track.spurroad, track.RP, track.spurroad.size() - 1, track.LGnum);
+            }
+            else
+            {
+                if (track.LGnum == 0)
+                    out_index = -1;
+                else
+                    out_index = findOut(track.pointsEdgeLeft, track.spurroad, track.LP, track.LGnum - 1, 0);
+            }
+            if (out_index != -1)
+            {
+                TypeCount++;
+            }
+            else
+            {
+                TypeCount = 0;
+            }
+            if (TypeCount >= zhen)
+            {
+                TypeCount = 0;
+                nowType = RingStep::Exiting;
+                return true;
+            }
+        }
+        // 出圆环
+        else if (nowType == RingStep::Exiting)
+        {
+            out_flag = true;
+            if (ringSide == RingType::RingLeft)
+            {
+                if (track.RGnum == 0)
+                    out_index = -1;
+                else
+                    out_index = findOut(track.pointsEdgeRight, track.spurroad, track.RP, track.spurroad.size() - 1, track.LGnum);
+            }
+            else
+            {
+                if (track.LGnum == 0)
+                    out_index = -1;
+                else
+                    out_index = findOut(track.pointsEdgeLeft, track.spurroad, track.LP, track.LGnum - 1, 0);
+            }
+            if (out_index == -1)
+            {
+                TypeCount++;
+            }
+            else
+            {
+                TypeCount = 0;
+            }
+            if (textDeBug)
+                cout << "TypeCount=" << TypeCount << " ,out_index=" << out_index << endl;
+            if (TypeCount >= zhen)
+            {
+                nowType = RingStep::Finish;
+                TypeCount = 0;
+                out_flag = false;
+                return true;
+            }
+            if (out_index != -1)
+            {
+                if (ringSide == RingType::RingLeft)
+                {
+                    addLine(track.pointsEdgeRight, POINT(0, 0), track.spurroad[out_index]);
+                }
+                else
+                {
+                    addLine(track.pointsEdgeLeft, POINT(0, COLSIMAGE - 1), track.spurroad[out_index]);
+                }
+            }
+        }
+        else if (nowType == RingStep::Finish)
+        {
+            TypeCount++;
+            if (TypeCount >= 50)
+            {
+                TypeCount = 0;
+                nowType = RingStep::NoRing;
+                ringSide = RingType::None;
+                if (textDeBug)
+                    cout << "圆环完成" << endl;
+            }
+        }
+        return true;
+    }
 };

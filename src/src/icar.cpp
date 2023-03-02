@@ -266,7 +266,7 @@ int main(int argc, char const *argv[])
     if ((scene == Scene::NormalScene || scene == Scene::RingScene) &&
         motion.params.ring && catering.noRing)
     {
-      if (ring.process(tracking, imgBinary))
+      if (ring.process(tracking))
         scene = Scene::RingScene;
       else
         scene = Scene::NormalScene;
@@ -353,12 +353,12 @@ int main(int argc, char const *argv[])
       case Scene::NormalScene:
         break;
       case Scene::CrossScene:                  // [ 十字区 ]
-        crossroad.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
+        // crossroad.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
         circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
         putText(imgCorrect, "+", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
         break;
       case Scene::RingScene:              // [ 环岛 ]
-        ring.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
+        // ring.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
         circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
         putText(imgCorrect, "H", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
         break;

@@ -16,6 +16,7 @@ CMakeFiles/icar.dir/src/icar.cpp.o
  /root/workspace/sasu_icar2025__demo/src/src/icar.cpp
  /root/workspace/sasu_icar2025__demo/src/src/motion.cpp
  /root/workspace/sasu_icar2025__demo/src/src/preprocess.cpp
+ /root/workspace/sasu_icar2025__demo/src/src/recognition/./tracking.cpp
  /root/workspace/sasu_icar2025__demo/src/src/recognition/crossroad.cpp
  /root/workspace/sasu_icar2025__demo/src/src/recognition/ring.cpp
  /root/workspace/sasu_icar2025__demo/src/src/recognition/tracking.cpp

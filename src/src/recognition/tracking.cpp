@@ -8,10 +8,10 @@
 #include <set>
 #include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
-#include "../../include/common.hpp"
-// #include "./common.hpp" // 赛道点集类
-#define COLSIMAGE 320   // 图像的列数
-#define ROWSIMAGE 240   // 图像的行数
+// #include <opencv2/imgproc/imgproc_c.h>
+#include "../../include/common.hpp" // 赛道点集类
+// #define COLSIMAGE 320   // 图像的列数
+// #define ROWSIMAGE 240   // 图像的行数
 #define WHITE 255
 #define BLACK 0
 #define PI (3.14159265)
@@ -32,58 +32,53 @@ public:
     vector<float> left_angle, right_angle;
     // vector<POINT> pointsLGuai;                    // 左线拐点集
     // vector<POINT> pointsRGuai;                    // 右线拐点集
-    vector<POINT> widthBlock;                     // 色块宽度=终-起（每行）
-    vector<POINT> spurroad;                       // 保存岔路信息
-    double stdevLeft = 0.0;                       // 左边缘斜率方差
-    double stdevRight = 0.0;                      // 右边缘斜率方差
-    int validRowsLeft = 1000;                     // 边缘有效行数（左）
-    int validRowsRight = 1000;                    // 边缘有效行数（右）
-    int MaxLeftY = 0;                             // 左边线最大y坐标
-    int MinRightY = COLSIMAGE - 1;                // 右边线最小y坐标
-    int diuLeft = 0;                              // 左边丢线数量
-    int diuRight = 0;                             // 右边丢线数量
-    __uint16_t rowCutUp = 3;                      // 图像顶部切行
-    __uint16_t rowCutBottom = 50;                 // 图像底部切行
-    __uint16_t rowEnd = ROWSIMAGE - rowCutBottom; // 底部起始
-    bool save = false;                            // 是否打印图像
-    int jian = 7;
+    vector<int> widthblock;                // 色块宽度=终-起（每行）
+    vector<POINT> spurroad;                // 保存岔路信息
+    double stdevLeft = 0.0;                // 左边缘斜率方差
+    double stdevRight = 0.0;               // 右边缘斜率方差
+    int validRowsLeft = 1000;              // 边缘有效行数（左）
+    int validRowsRight = 1000;             // 边缘有效行数（右）
+    int MaxLeftY = -1;                     // 左边线最大y坐标
+    int MinRightY = COLSIMAGE;             // 右边线最小y坐标
+    int diuLeft = 0;                       // 左边丢线数量
+    int diuRight = 0;                      // 右边丢线数量
+    int rowCutUp = 3;                      // 图像顶部切行
+    int rowCutBottom = 50;                 // 图像底部切行
+    int rowEnd = ROWSIMAGE - rowCutBottom; // 底部起始
+    bool save = false;                     // 是否打印图像
+    // int jian = 7;
     int window = 5;                // nms抑制的窗口大小
     int point_num = 200, dist = 7; // 等间距采样的点数和间距
     int kernel = 5;                // 滤波的窗口
+    int LGnum = 0, RGnum = 0;      // 左右拐点数量
+    POINT L_Start, R_Start;        // 左右边线起始点
+    int LP, RP;                    // 左偏移量，右偏移量(特制pointsEdgeLeft和pointsEdgeRight的第一个点的x坐标)
+    bool textDebug = false;
 
     void trackRecognition(bool isResearch, uint16_t rowStart)
     {
-        if (!isResearch)
-        {
-            pointsEdgeLeft.clear();
-            pointsEdgeRight.clear();
-            pointsEdgeZhong.clear();
-            // pointsLGuai.clear();
-            // pointsRGuai.clear();
-            pointsLeft.clear();
-            pointsRight.clear();
-            spurroad.clear();
-            validRowsLeft = 1000;
-            validRowsRight = 1000;
-            widthBlock.clear();
-            left_angle.clear();
-            right_angle.clear();
-        }
-        else
-        {
-            if (pointsEdgeLeft.size() > rowStart)
-                pointsEdgeLeft.resize(rowStart);
-            if (pointsEdgeRight.size() > rowStart)
-                pointsEdgeRight.resize(rowStart);
-            if (pointsEdgeZhong.size() > rowStart)
-                pointsEdgeZhong.resize(rowStart);
-            if (widthBlock.size() > rowStart)
-            {
-                widthBlock.resize(rowStart);
-                if (rowStart > 1)
-                    rowStart = widthBlock[rowStart - 1].x - 2;
-            }
-        }
+        // 初始化
+        pointsEdgeLeft.clear();
+        pointsEdgeRight.clear();
+        pointsEdgeZhong.clear();
+        // pointsLGuai.clear();
+        // pointsRGuai.clear();
+        pointsLeft.clear();
+        pointsRight.clear();
+        spurroad.clear();
+        validRowsLeft = 1000;
+        validRowsRight = 1000;
+        widthblock.resize(ROWSIMAGE, COLSIMAGE + 1); // 色块宽度=终-起（每行）
+        left_angle.clear();
+        right_angle.clear();
+        diuLeft = 0;
+        diuRight = 0;
+        LGnum = 0;
+        RGnum = 0;
+        MaxLeftY = 0;
+        MinRightY = COLSIMAGE - 1;
+        LP = 0;
+        RP = 0;
 
         // 清理图像边界
         for (int i = 0; i < ROWSIMAGE; i++)
@@ -99,7 +94,6 @@ public:
             imagePath.at<uchar>(1, i) = BLACK;
         }
 
-        POINT L_Start, R_Start;
         bool leftFound = false, rightFound = false;
 
         for (int i = COLSIMAGE / 2; i > 0; i--)
@@ -275,8 +269,8 @@ public:
 
         nms_angle(left_angle, window);
         nms_angle(right_angle, window);
-        add_supproad(left_angle, pointsLeft);
-        add_supproad(right_angle, pointsRight);
+        add_supproad(left_angle, pointsLeft, LGnum);
+        add_supproad(right_angle, pointsRight, RGnum);
 
         // medianFilterPointsY(pointsEdgeLeft, 5);
         // medianFilterPointsY(pointsEdgeRight, 5);
@@ -293,18 +287,32 @@ public:
         // detectCornerByVarianceLight(pointsEdgeRight, spurroad);
 
         // // drawImage(imagePath);
-        cout << "pointsLeft.size()=" << pointsEdgeLeft.size() << endl;
-        cout << "pointsRight.size()=" << pointsEdgeRight.size() << endl;
-        cout << "pointsEdgeLeft.size()=" << pointsEdgeLeft.size() << endl;
-        cout << "pointsEdgeRight.size()=" << pointsEdgeRight.size() << endl;
-        // // cout << "pointsLGuai.size()=" << pointsLGuai.size() << endl;
-        // // cout << "pointsRGuai.size()=" << pointsRGuai.size() << endl;
-        cout << "spurroad.size()=" << spurroad.size() << endl;
-        stdevLeft = stdevEdgeCal(pointsEdgeLeft, ROWSIMAGE);
-        stdevRight = stdevEdgeCal(pointsEdgeRight, ROWSIMAGE);
-        cout << "stdevLeft=" << stdevLeft << endl;
-        cout << "stdevRight=" << stdevRight << endl;
-        widthBlock.resize(pointsEdgeLeft.size(),POINT(0,0));
+        if (textDebug)
+        {
+            cout << "pointsLeft.size()=" << pointsEdgeLeft.size() << endl;
+            cout << "pointsRight.size()=" << pointsEdgeRight.size() << endl;
+            cout << "pointsEdgeLeft.size()=" << pointsEdgeLeft.size() << endl;
+            cout << "pointsEdgeRight.size()=" << pointsEdgeRight.size() << endl;
+            // // cout << "pointsLGuai.size()=" << pointsLGuai.size() << endl;
+            // // cout << "pointsRGuai.size()=" << pointsRGuai.size() << endl;
+            cout << "spurroad.size()=" << spurroad.size() << endl;
+            cout << "LGnum=" << LGnum << endl;
+            cout << "RGnum=" << RGnum << endl;
+            cout << "diuLeft=" << diuLeft << endl;
+            cout << "diuRight=" << diuRight << endl;
+            stdevLeft = stdevEdgeCal(pointsEdgeLeft, ROWSIMAGE);
+            stdevRight = stdevEdgeCal(pointsEdgeRight, ROWSIMAGE);
+            cout << "stdevLeft=" << stdevLeft << endl;
+            cout << "stdevRight=" << stdevRight << endl;
+            cout << "L_Start.x=" << L_Start.x << ",L_Start.y=" << L_Start.y << endl;
+            cout << "R_Start.x=" << R_Start.x << ",R_Start.y=" << R_Start.y << endl;
+            cout << "LP=" << LP << ",RP=" << RP << endl;
+            cout << endl;
+            for (int i = 0; i < spurroad.size(); i++)
+            {
+                cout << "spurroad[" << i << "].x=" << spurroad[i].x << ",spurroad[" << i << "].y=" << spurroad[i].y << endl;
+            }
+        }
     }
 
     // 提取的左右边线，是从上至下的
@@ -312,25 +320,26 @@ public:
     {
         vector<bool> leftVis(ROWSIMAGE + 1, false);
         vector<bool> rightVis(ROWSIMAGE + 1, false);
-        for (int i = left.size() - 1; i >= 0; i--)
-        {
-            if (left.size() >= 0 && leftVis[left[i].x] == false && left[i].x <= rowEnd && left[i].x >= 3)
-            {
-                leftVis[left[i].x] = true;
-                pointsEdgeLeft.push_back(left[i]);
-            }
-            // else if (left.size() >= 0 && leftVis[left[i].x] == true && left[i].x <= rowEnd && left[i].x >= 3)
-            // {
-            //     left.erase(left.begin() + i);
-            //     // i+=1;
-            // }
-        }
+        cout << endl;
+        int index = 0;
         for (int i = right.size() - 1; i >= 0; i--)
         {
             if (right.size() > 0 && rightVis[right[i].x] == false && right[i].x <= rowEnd && right[i].x >= 3)
             {
                 rightVis[right[i].x] = true;
                 pointsEdgeRight.push_back(right[i]);
+                widthblock[right[i].x] = right[i].y; // 记录色块宽度
+                if (textDebug)
+                {
+                    cout << "right[" << index << "].x=" << right[i].x << ",right[" << index << "].y=" << right[i].y << endl;
+                }
+                index++;
+                if (right[i].y == COLSIMAGE - 2)
+                    diuRight++;
+                else
+                    validRowsRight++;
+                if (right[i].y < MinRightY)
+                    MinRightY = right[i].y;
             }
             // else if (right.size() > 0 && rightVis[right[i].x] == true && right[i].x <= rowEnd && right[i].x >= 3)
             // {
@@ -338,8 +347,40 @@ public:
             //     // i+=1;
             // }
         }
-        // for(int i=0;i)
-
+        RP = pointsEdgeRight[0].x;
+        index = 0;
+        for (int i = left.size() - 1; i >= 0; i--)
+        {
+            if (left.size() >= 0 && leftVis[left[i].x] == false && left[i].x <= rowEnd && left[i].x >= 3)
+            {
+                leftVis[left[i].x] = true;
+                pointsEdgeLeft.push_back(left[i]);
+                if (textDebug)
+                {
+                    cout << "left[" << index << "].x=" << left[i].x << ",left[" << index << "].y=" << left[i].y << endl;
+                }
+                index++;
+                if (left[i].y == 1)
+                    diuLeft++;
+                else
+                    validRowsLeft++;
+                if (widthblock[left[i].x] < COLSIMAGE - 1)
+                    widthblock[left[i].x] -= left[i].y; // 记录色块宽度
+                if (left[i].y > MaxLeftY)
+                    MaxLeftY = left[i].y;
+            }
+            // else if (left.size() >= 0 && leftVis[left[i].x] == true && left[i].x <= rowEnd && left[i].x >= 3)
+            // {
+            //     left.erase(left.begin() + i);
+            //     // i+=1;
+            // }
+        }
+        LP = pointsEdgeLeft[0].x;
+        // for (int i = 0; i < widthblock.size(); i++)
+        // {
+        //     cout << "widthblock[" << i << "]=" << widthblock[i] << endl;
+        // }
+        // cout << endl;
         int half = kernel / 2;
         int t;
         vector<POINT> leftEdge(pointsEdgeLeft.size(), POINT(0, 0));
@@ -359,7 +400,7 @@ public:
             leftEdge[i].x /= (2 * half + 2) * (half + 1) / 2;
             leftEdge[i].y /= (2 * half + 2) * (half + 1) / 2;
         }
-        pointsEdgeLeft = leftEdge;
+        // pointsEdgeLeft = leftEdge;
         left = leftEdge;
         vector<POINT> rightEdge(pointsEdgeRight.size(), POINT(0, 0));
         for (int i = 0; i < rightEdge.size(); i++)
@@ -378,7 +419,7 @@ public:
             rightEdge[i].x /= (2 * half + 2) * (half + 1) / 2;
             rightEdge[i].y /= (2 * half + 2) * (half + 1) / 2;
         }
-        pointsEdgeRight = rightEdge;
+        // pointsEdgeRight = rightEdge;
         right = rightEdge;
         // // 等距采样，jian为采样间距
         // for (int i = 0; i < left.size(); i += jian)
@@ -402,48 +443,48 @@ public:
     //   edge: 输入点集（按顺序）
     //   corners: 输出角点集
     //   angleThresholdDeg: 夹角阈值（度），夹角小于该值即判为拐点
-    void detectCornerByThreePointAngle(const vector<POINT> &edge, vector<POINT> &corners, int sample = 5, float angleThresholdDeg = 60.0f)
-    {
-        if (edge.size() < 2 * sample + 1)
-            return;
+    // void detectCornerByThreePointAngle(const vector<POINT> &edge, vector<POINT> &corners, int sample = 5, float angleThresholdDeg = 60.0f)
+    // {
+    //     if (edge.size() < 2 * sample + 1)
+    //         return;
 
-        float thresholdRad = angleThresholdDeg * CV_PI / 180.0f;
+    //     float thresholdRad = angleThresholdDeg * CV_PI / 180.0f;
 
-        vector<float> angles(edge.size(), CV_PI); // 默认最大角度
-        for (size_t i = sample; i < edge.size() - sample; ++i)
-        {
-            float ax = edge[i].x - edge[i - sample].x;
-            float ay = edge[i].y - edge[i - sample].y;
-            float bx = edge[i + sample].x - edge[i].x;
-            float by = edge[i + sample].y - edge[i].y;
+    //     vector<float> angles(edge.size(), CV_PI); // 默认最大角度
+    //     for (size_t i = sample; i < edge.size() - sample; ++i)
+    //     {
+    //         float ax = edge[i].x - edge[i - sample].x;
+    //         float ay = edge[i].y - edge[i - sample].y;
+    //         float bx = edge[i + sample].x - edge[i].x;
+    //         float by = edge[i + sample].y - edge[i].y;
 
-            float lenA = sqrt(ax * ax + ay * ay);
-            float lenB = sqrt(bx * bx + by * by);
+    //         float lenA = sqrt(ax * ax + ay * ay);
+    //         float lenB = sqrt(bx * bx + by * by);
 
-            if (lenA < 1e-5 || lenB < 1e-5)
-                continue;
+    //         if (lenA < 1e-5 || lenB < 1e-5)
+    //             continue;
 
-            float dot = ax * bx + ay * by;
-            float cosTheta = dot / (lenA * lenB);
-            cosTheta = std::max(-1.0f, std::min(1.0f, cosTheta)); // 防止浮点误差
+    //         float dot = ax * bx + ay * by;
+    //         float cosTheta = dot / (lenA * lenB);
+    //         cosTheta = std::max(-1.0f, std::min(1.0f, cosTheta)); // 防止浮点误差
 
-            float angle = acos(cosTheta); // 弧度
-            angles[i] = angle;
-        }
+    //         float angle = acos(cosTheta); // 弧度
+    //         angles[i] = angle;
+    //     }
 
-        // 非极大值抑制：只保留局部最小的尖角
-        for (size_t i = sample + 1; i < edge.size() - sample - 1; ++i)
-        {
-            if (angles[i] < thresholdRad &&
-                angles[i] < angles[i - 1] &&
-                angles[i] < angles[i + 1])
-            {
-                corners.push_back(edge[i]);
-            }
-        }
-    }
+    //     // 非极大值抑制：只保留局部最小的尖角
+    //     for (size_t i = sample + 1; i < edge.size() - sample - 1; ++i)
+    //     {
+    //         if (angles[i] < thresholdRad &&
+    //             angles[i] < angles[i - 1] &&
+    //             angles[i] < angles[i + 1])
+    //         {
+    //             corners.push_back(edge[i]);
+    //         }
+    //     }
+    // }
 
-    void add_supproad(vector<float> &angle, const vector<POINT> &edge)
+    void add_supproad(vector<float> &angle, const vector<POINT> &edge, int &Gnum)
     {
         if (angle.empty())
             return;
@@ -458,17 +499,21 @@ public:
             int next = i + 1 >= angle.size() ? angle.size() - 1 : i + 1 <= 0 ? 0
                                                                              : i + 1;
             float conf = fabs(angle[i]) - (fabs(angle[pre]) + fabs(angle[next])) / 2;
-            cout << "index=" << index << ",x:" << edge[i].x << ",y:" << edge[i].y << ",angle:" << angle[i] << ",conf=" << conf;
+            if (textDebug)
+                cout << "index=" << index << ",x:" << edge[i].x << ",y:" << edge[i].y << ",angle:" << angle[i] << ",conf=" << conf;
             // if (40. / 180. * PI < conf && conf < 140. / 180. * PI)
             if (conf > 0.35 && conf < 2.5)
             {
-                if (edge[i].y > 5 && edge[i].y < COLSIMAGE - 5)
+                if (edge[i].y > 10 && edge[i].y < COLSIMAGE - 10)
                 {
                     spurroad.push_back(edge[i]);
-                    cout << ",*****************";
+                    Gnum++;
+                    if (textDebug)
+                        cout << ",*****************";
                 }
             }
-            cout << endl;
+            if (textDebug)
+                cout << endl;
         }
     }
 
@@ -550,121 +595,121 @@ public:
         angle = nms_angle;
     }
 
-    void medianFilterPointsY(std::vector<POINT> &points, int windowSize = 5)
-    {
-        if (points.size() < windowSize)
-            return;
+    // void medianFilterPointsY(std::vector<POINT> &points, int windowSize = 5)
+    // {
+    //     if (points.size() < windowSize)
+    //         return;
 
-        std::vector<__uint16_t> filteredY(points.size());
-        int halfWindow = windowSize / 2;
+    //     std::vector<__uint16_t> filteredY(points.size());
+    //     int halfWindow = windowSize / 2;
 
-        for (size_t i = 0; i < points.size(); ++i)
-        {
-            std::vector<__uint16_t> windowValues;
+    //     for (size_t i = 0; i < points.size(); ++i)
+    //     {
+    //         std::vector<__uint16_t> windowValues;
 
-            // 取窗口内y值，窗口边界时用边界点补齐
-            for (int w = -halfWindow; w <= halfWindow; ++w)
-            {
-                int idx = static_cast<int>(i) + w;
-                if (idx < 0)
-                    idx = 0;
-                else if (idx >= (int)points.size())
-                    idx = points.size() - 1;
+    //         // 取窗口内y值，窗口边界时用边界点补齐
+    //         for (int w = -halfWindow; w <= halfWindow; ++w)
+    //         {
+    //             int idx = static_cast<int>(i) + w;
+    //             if (idx < 0)
+    //                 idx = 0;
+    //             else if (idx >= (int)points.size())
+    //                 idx = points.size() - 1;
 
-                windowValues.push_back(points[idx].y);
-            }
+    //             windowValues.push_back(points[idx].y);
+    //         }
 
-            // 取中值
-            std::nth_element(windowValues.begin(), windowValues.begin() + windowValues.size() / 2, windowValues.end());
-            filteredY[i] = windowValues[windowValues.size() / 2];
-        }
+    //         // 取中值
+    //         std::nth_element(windowValues.begin(), windowValues.begin() + windowValues.size() / 2, windowValues.end());
+    //         filteredY[i] = windowValues[windowValues.size() / 2];
+    //     }
 
-        // 赋值回去
-        for (size_t i = 0; i < points.size(); ++i)
-        {
-            points[i].y = filteredY[i];
-        }
-    }
+    //     // 赋值回去
+    //     for (size_t i = 0; i < points.size(); ++i)
+    //     {
+    //         points[i].y = filteredY[i];
+    //     }
+    // }
 
-    void detectCornerByVarianceLight(const vector<POINT> &edge, vector<POINT> &corners, int window = 2,
-                                     double dirVarThreshold = 0.5, double slopeVarThreshold = 0.3)
-    {
+    // void detectCornerByVarianceLight(const vector<POINT> &edge, vector<POINT> &corners, int window = 2,
+    //                                  double dirVarThreshold = 0.5, double slopeVarThreshold = 0.3)
+    // {
 
-        int half = window / 2;
-        int n = (int)edge.size();
-        if (n < window)
-            return;
+    //     int half = window / 2;
+    //     int n = (int)edge.size();
+    //     if (n < window)
+    //         return;
 
-        for (int i = half; i < n - half; ++i)
-        {
-            vector<int> dirVals;
-            vector<float> slopeVals;
-            for (int j = i - half; j <= i + half; ++j)
-            {
-                dirVals.push_back(edge[j].direction);
-                slopeVals.push_back(edge[j].slope);
-            }
+    //     for (int i = half; i < n - half; ++i)
+    //     {
+    //         vector<int> dirVals;
+    //         vector<float> slopeVals;
+    //         for (int j = i - half; j <= i + half; ++j)
+    //         {
+    //             dirVals.push_back(edge[j].direction);
+    //             slopeVals.push_back(edge[j].slope);
+    //         }
 
-            // 简化方向差平方均值（用离散方向差）
-            double dirMean = 0;
-            for (auto d : dirVals)
-                dirMean += d;
-            dirMean /= dirVals.size();
+    //         // 简化方向差平方均值（用离散方向差）
+    //         double dirMean = 0;
+    //         for (auto d : dirVals)
+    //             dirMean += d;
+    //         dirMean /= dirVals.size();
 
-            double dirVar = 0;
-            for (auto d : dirVals)
-            {
-                int diff = abs(d - (int)dirMean);
-                if (diff > 4)
-                    diff = 8 - diff; // 环绕修正
-                dirVar += diff * diff;
-            }
-            dirVar /= dirVals.size();
+    //         double dirVar = 0;
+    //         for (auto d : dirVals)
+    //         {
+    //             int diff = abs(d - (int)dirMean);
+    //             if (diff > 4)
+    //                 diff = 8 - diff; // 环绕修正
+    //             dirVar += diff * diff;
+    //         }
+    //         dirVar /= dirVals.size();
 
-            // 斜率方差
-            double slopeMean = 0;
-            for (auto s : slopeVals)
-                slopeMean += s;
-            slopeMean /= slopeVals.size();
+    //         // 斜率方差
+    //         double slopeMean = 0;
+    //         for (auto s : slopeVals)
+    //             slopeMean += s;
+    //         slopeMean /= slopeVals.size();
 
-            double slopeVar = 0;
-            for (auto s : slopeVals)
-            {
-                double diff = s - slopeMean;
-                slopeVar += diff * diff;
-            }
-            slopeVar /= slopeVals.size();
+    //         double slopeVar = 0;
+    //         for (auto s : slopeVals)
+    //         {
+    //             double diff = s - slopeMean;
+    //             slopeVar += diff * diff;
+    //         }
+    //         slopeVar /= slopeVals.size();
 
-            if (dirVar > dirVarThreshold && slopeVar > slopeVarThreshold)
-                corners.push_back(edge[i]);
-        }
-    }
+    //         if (dirVar > dirVarThreshold && slopeVar > slopeVarThreshold)
+    //             corners.push_back(edge[i]);
+    //     }
+    // }
 
-    void detectGuaiDianCombined(const vector<POINT> &edge)
-    {
-        const int dirThreshold = 2;
-        const float slopeDiffThreshold = 2;
+    // void detectGuaiDianCombined(const vector<POINT> &edge)
+    // {
+    //     const int dirThreshold = 2;
+    //     const float slopeDiffThreshold = 2;
 
-        for (size_t i = min(edge.size() - 5, edge.size()); i > 5; i--)
-        {
-            if (edge[i].y < 3 || edge[i].y > COLSIMAGE - 3)
-                continue;
-            int dir_now = edge[i].direction;
-            int dir_prev = edge[i - 1].direction;
-            int dir_diff = abs(dir_now - dir_prev);
-            if (dir_diff > 4)
-                dir_diff = 8 - dir_diff;
+    //     for (size_t i = min(edge.size() - 5, edge.size()); i > 5; i--)
+    //     {
+    //         if (edge[i].y < 3 || edge[i].y > COLSIMAGE - 3)
+    //             continue;
+    //         int dir_now = edge[i].direction;
+    //         int dir_prev = edge[i - 1].direction;
+    //         int dir_diff = abs(dir_now - dir_prev);
+    //         if (dir_diff > 4)
+    //             dir_diff = 8 - dir_diff;
 
-            float slope_now = edge[i].slope;
-            float slope_prev = edge[i - 1].slope;
-            float slope_diff = abs(slope_now - slope_prev);
+    //         float slope_now = edge[i].slope;
+    //         float slope_prev = edge[i - 1].slope;
+    //         float slope_diff = abs(slope_now - slope_prev);
 
-            if (dir_diff >= dirThreshold && slope_diff >= slopeDiffThreshold)
-            {
-                spurroad.push_back(edge[i]);
-            }
-        }
-    }
+    //         if (dir_diff >= dirThreshold && slope_diff >= slopeDiffThreshold)
+    //         {
+    //             spurroad.push_back(edge[i]);
+    //         }
+    //     }
+    // }
 
     // void blur_points(float pts_in[][2], int num, float pts_out[][2], int kernel)
     // {
@@ -745,73 +790,73 @@ public:
     //         widthBlock.push_back(POINT(pointsEdgeLeft[i].x, pointsEdgeRight[i].y - pointsEdgeLeft[i].y));
     //     }
     // }
-    void zhong_line()
-    {
-        int left_index = 0, right_index = 0;
-        while (left_index < pointsEdgeLeft.size() && right_index < pointsEdgeRight.size())
-        {
-            pointsEdgeZhong.push_back(POINT(pointsEdgeLeft[left_index].x, (pointsEdgeLeft[left_index].y + pointsEdgeRight[right_index].y) / 2));
-            left_index++;
-            right_index++;
-        }
-    }
+    // void zhong_line()
+    // {
+    //     int left_index = 0, right_index = 0;
+    //     while (left_index < pointsEdgeLeft.size() && right_index < pointsEdgeRight.size())
+    //     {
+    //         pointsEdgeZhong.push_back(POINT(pointsEdgeLeft[left_index].x, (pointsEdgeLeft[left_index].y + pointsEdgeRight[right_index].y) / 2));
+    //         left_index++;
+    //         right_index++;
+    //     }
+    // }
 
-    void img_print()
-    {
-        ofstream file("./first.xls");
-        if (!file.is_open())
-        {
-            cout << "open file error!" << endl;
-            return;
-        }
+    // void img_print()
+    // {
+    //     ofstream file("./first.xls");
+    //     if (!file.is_open())
+    //     {
+    //         cout << "open file error!" << endl;
+    //         return;
+    //     }
 
-        for (int i = 0; i < ROWSIMAGE; i++)
-        {
-            for (int j = 0; j < COLSIMAGE; j++)
-                file << (int)imagePath.at<uchar>(i, j) << '\t';
-            file << endl;
-        }
-        file.close();
-    }
+    //     for (int i = 0; i < ROWSIMAGE; i++)
+    //     {
+    //         for (int j = 0; j < COLSIMAGE; j++)
+    //             file << (int)imagePath.at<uchar>(i, j) << '\t';
+    //         file << endl;
+    //     }
+    //     file.close();
+    // }
 
-    void slopeCal(vector<POINT> &edge, int index)
-    {
-        if (index <= 4)
-        {
-            return;
-        }
-        float temp_slop1 = 0.0, temp_slop2 = 0.0;
-        if (edge[index].x - edge[index - 2].x != 0)
-        {
-            temp_slop1 = (float)(edge[index].y - edge[index - 2].y) * 1.0f /
-                         ((edge[index].x - edge[index - 2].x) * 1.0f);
-        }
-        else
-        {
-            temp_slop1 = edge[index].y > edge[index - 2].y ? 255 : -255;
-        }
-        if (edge[index].x - edge[index - 4].x != 0)
-        {
-            temp_slop2 = (float)(edge[index].y - edge[index - 4].y) * 1.0f /
-                         ((edge[index].x - edge[index - 4].x) * 1.0f);
-        }
-        else
-        {
-            edge[index].slope = edge[index].y > edge[index - 4].y ? 255 : -255;
-        }
-        if (abs(temp_slop1) != 255 && abs(temp_slop2) != 255)
-        {
-            edge[index].slope = (temp_slop1 + temp_slop2) * 1.0 / 2;
-        }
-        else if (abs(temp_slop1) != 255)
-        {
-            edge[index].slope = temp_slop1;
-        }
-        else
-        {
-            edge[index].slope = temp_slop2;
-        }
-    }
+    // void slopeCal(vector<POINT> &edge, int index)
+    // {
+    //     if (index <= 4)
+    //     {
+    //         return;
+    //     }
+    //     float temp_slop1 = 0.0, temp_slop2 = 0.0;
+    //     if (edge[index].x - edge[index - 2].x != 0)
+    //     {
+    //         temp_slop1 = (float)(edge[index].y - edge[index - 2].y) * 1.0f /
+    //                      ((edge[index].x - edge[index - 2].x) * 1.0f);
+    //     }
+    //     else
+    //     {
+    //         temp_slop1 = edge[index].y > edge[index - 2].y ? 255 : -255;
+    //     }
+    //     if (edge[index].x - edge[index - 4].x != 0)
+    //     {
+    //         temp_slop2 = (float)(edge[index].y - edge[index - 4].y) * 1.0f /
+    //                      ((edge[index].x - edge[index - 4].x) * 1.0f);
+    //     }
+    //     else
+    //     {
+    //         edge[index].slope = edge[index].y > edge[index - 4].y ? 255 : -255;
+    //     }
+    //     if (abs(temp_slop1) != 255 && abs(temp_slop2) != 255)
+    //     {
+    //         edge[index].slope = (temp_slop1 + temp_slop2) * 1.0 / 2;
+    //     }
+    //     else if (abs(temp_slop1) != 255)
+    //     {
+    //         edge[index].slope = temp_slop1;
+    //     }
+    //     else
+    //     {
+    //         edge[index].slope = temp_slop2;
+    //     }
+    // }
 
     // double stdevEdgeCal(vector<POINT> &v_edge, int img_height)
     // {
@@ -884,8 +929,8 @@ public:
     void trackRecognition(Mat &imageBinary)
     {
         imagePath = imageBinary;
-        if (save)
-            savePicture(imageBinary, false);
+        // if (save)
+        //     savePicture(imageBinary, false);
         trackRecognition(false, 0);
         // track(imagePath, img, true); // 赛道线识别
     }
@@ -898,31 +943,31 @@ public:
     void drawImage(Mat &trackImage)
     {
         // Point（列号，行号）
-        // for (size_t i = 0; i < pointsEdgeLeft.size(); i++)
-        // {
-        //     circle(trackImage, Point(pointsEdgeLeft[i].y, pointsEdgeLeft[i].x), 1,
-        //            Scalar(0, 255, 0), -1); // 绿色点
-        // }
-        // for (size_t i = 0; i < pointsEdgeRight.size(); i++)
-        // {
-        //     circle(trackImage, Point(pointsEdgeRight[i].y, pointsEdgeRight[i].x), 1,
-        //            Scalar(0, 255, 255), -1); // 黄色点
-        // }
-        for (size_t i = 0; i < pointsLeft.size(); i++)
+        for (size_t i = 0; i < pointsEdgeLeft.size(); i++)
         {
-            circle(trackImage, Point(pointsLeft[i].y, pointsLeft[i].x), 1,
+            circle(trackImage, Point(pointsEdgeLeft[i].y, pointsEdgeLeft[i].x), 1,
                    Scalar(0, 255, 0), -1); // 绿色点
         }
-        for (size_t i = 0; i < pointsRight.size(); i++)
+        for (size_t i = 0; i < pointsEdgeRight.size(); i++)
         {
-            circle(trackImage, Point(pointsRight[i].y, pointsRight[i].x), 1,
+            circle(trackImage, Point(pointsEdgeRight[i].y, pointsEdgeRight[i].x), 1,
                    Scalar(0, 255, 255), -1); // 黄色点
         }
-        for (size_t i = 0; i < pointsEdgeZhong.size(); i++)
-        {
-            circle(trackImage, Point(pointsEdgeZhong[i].y, pointsEdgeZhong[i].x), 1,
-                   Scalar(255, 0, 0), -1); // 蓝色点
-        }
+        // for (size_t i = 0; i < pointsLeft.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsLeft[i].y, pointsLeft[i].x), 1,
+        //            Scalar(0, 255, 0), -1); // 绿色点
+        // }
+        // for (size_t i = 0; i < pointsRight.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsRight[i].y, pointsRight[i].x), 1,
+        //            Scalar(0, 255, 255), -1); // 黄色点
+        // }
+        // for (size_t i = 0; i < pointsEdgeZhong.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsEdgeZhong[i].y, pointsEdgeZhong[i].x), 1,
+        //            Scalar(255, 0, 0), -1); // 蓝色点
+        // }
         // for (size_t i = 0; i < pointsLGuai.size(); i++)
         // {
         //     circle(trackImage, Point(pointsLGuai[i].y, pointsLGuai[i].x), 5,
@@ -933,41 +978,41 @@ public:
         //     circle(trackImage, Point(pointsRGuai[i].y, pointsRGuai[i].x), 5,
         //            Scalar(255, 255, 0), -1); // 青色点
         // }
-        for (size_t i = 0; i < left_angle.size(); i++)
-        {
-            if (left_angle[i] != 0)
-            {
-                circle(trackImage, Point(pointsLeft[i].y, pointsLeft[i].x), 1,
-                       Scalar(255, 0, 255), -1); // 绿色点
-            }
-        }
-        for (size_t i = 0; i < right_angle.size(); i++)
-        {
-            if (right_angle[i] != 0)
-            {
-                circle(trackImage, Point(pointsRight[i].y, pointsRight[i].x), 1,
-                       Scalar(255, 0, 255), -1); // 黄色点
-            }
-        }
+        // for (size_t i = 0; i < left_angle.size(); i++)
+        // {
+        //     if (left_angle[i] != 0)
+        //     {
+        //         circle(trackImage, Point(pointsLeft[i].y, pointsLeft[i].x), 1,
+        //                Scalar(255, 0, 255), -1); // 绿色点
+        //     }
+        // }
+        // for (size_t i = 0; i < right_angle.size(); i++)
+        // {
+        //     if (right_angle[i] != 0)
+        //     {
+        //         circle(trackImage, Point(pointsRight[i].y, pointsRight[i].x), 1,
+        //                Scalar(255, 0, 255), -1); // 黄色点
+        //     }
+        // }
         for (size_t i = 0; i < spurroad.size(); i++)
         {
             circle(trackImage, Point(spurroad[i].y, spurroad[i].x), 4,
                    Scalar(255, 255, 0), -1); // 紫色点
         }
-        if (save)
-            savePicture(trackImage, true); // 保存图像
+        // if (save)
+        //     savePicture(trackImage, true); // 保存图像
     }
-    void savePicture(Mat &image, bool flag)
-    {
-        // 存图
-        string name = ".jpg";
-        static int counter = 0;
-        counter++;
-        string imgPath = "./";
-        if (flag)
-            imgPath += "cai";
-        imgPath += "tu/";
-        name = imgPath + to_string(counter) + ".jpg";
-        imwrite(name, image);
-    }
+    // void savePicture(Mat &image, bool flag)
+    // {
+    //     // 存图
+    //     string name = ".jpg";
+    //     static int counter = 0;
+    //     counter++;
+    //     string imgPath = "./";
+    //     if (flag)
+    //         imgPath += "cai";
+    //     imgPath += "tu/";
+    //     name = imgPath + to_string(counter) + ".jpg";
+    //     imwrite(name, image);
+    // }
 };

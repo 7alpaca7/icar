@@ -37,7 +37,7 @@ class Catering
 public:
 
     bool stopEnable = false;        // 停车使能标志
-    bool noRing = false;            // 用来区分环岛路段
+    bool noRing = true;            // 用来区分环岛路段
 
     bool process(Tracking &track, Mat &image, vector<PredictResult> predict)
     {

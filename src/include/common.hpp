@@ -37,7 +37,7 @@ using namespace cv;
 #define COLSIMAGEIPM 320 // IPM图像的列数
 #define ROWSIMAGEIPM 400 // IPM图像的行数
 #define PWMSERVOMAX 2100 // 舵机PWM最大值（左）1840
-#define PWMSERVOMID 1550 // 舵机PWM中值 1520
+#define PWMSERVOMID 1550 // 舵机PWM中值 1520 error=0
 #define PWMSERVOMIN 1200 // 舵机PWM最小值（右）1200
 
 #define LABEL_BATTERY 0    // AI标签：充电站
