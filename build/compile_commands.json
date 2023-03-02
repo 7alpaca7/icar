@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/src/include -I/root/workspace/sasu_icar2025__demo/src/config -I/root/workspace/sasu_icar2025__demo/src/src -I/root/workspace/sasu_icar2025__demo/src/tool -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/img2video.dir/tool/img2video.cpp.o -c /root/workspace/sasu_icar2025__demo/src/tool/img2video.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/src/tool/img2video.cpp"
+},
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/src/include -I/root/workspace/sasu_icar2025__demo/src/config -I/root/workspace/sasu_icar2025__demo/src/src -I/root/workspace/sasu_icar2025__demo/src/tool -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/collection.dir/tool/collection.cpp.o -c /root/workspace/sasu_icar2025__demo/src/tool/collection.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/src/tool/collection.cpp"
+},
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/src/include -I/root/workspace/sasu_icar2025__demo/src/config -I/root/workspace/sasu_icar2025__demo/src/src -I/root/workspace/sasu_icar2025__demo/src/tool -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/calibration.dir/tool/calibration.cpp.o -c /root/workspace/sasu_icar2025__demo/src/tool/calibration.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/src/tool/calibration.cpp"
+},
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/src/include -I/root/workspace/sasu_icar2025__demo/src/config -I/root/workspace/sasu_icar2025__demo/src/src -I/root/workspace/sasu_icar2025__demo/src/tool -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/icar.dir/src/icar.cpp.o -c /root/workspace/sasu_icar2025__demo/src/src/icar.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/src/src/icar.cpp"
+},
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/src/include -I/root/workspace/sasu_icar2025__demo/src/config -I/root/workspace/sasu_icar2025__demo/src/src -I/root/workspace/sasu_icar2025__demo/src/tool -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/camera.dir/tool/camera.cpp.o -c /root/workspace/sasu_icar2025__demo/src/tool/camera.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/src/tool/camera.cpp"
+},
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/src/include -I/root/workspace/sasu_icar2025__demo/src/config -I/root/workspace/sasu_icar2025__demo/src/src -I/root/workspace/sasu_icar2025__demo/src/tool -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/detection.dir/src/detection.cpp.o -c /root/workspace/sasu_icar2025__demo/src/src/detection.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/src/src/detection.cpp"
+}
+]

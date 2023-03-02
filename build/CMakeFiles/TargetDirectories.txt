@@ -1,0 +1,8 @@
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/rebuild_cache.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/edit_cache.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/img2video.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/collection.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/calibration.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/icar.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/camera.dir
+/root/workspace/sasu_icar2025__demo/build/CMakeFiles/detection.dir
