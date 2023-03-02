@@ -29,8 +29,10 @@
 using namespace std;
 using namespace cv;
 
-#define COLS_IMG 640 // 摄像头：图像的列数
-#define ROWS_IMG 480 // 摄像头：图像的行数
+// #define COLS_IMG 640 // 摄像头：图像的列数
+// #define ROWS_IMG 480 // 摄像头：图像的行数
+#define COLS_IMG 320 // 摄像头：图像的列数
+#define ROWS_IMG 240 // 摄像头：图像的行数
 
 int main(int argc, char const *argv[])
 {

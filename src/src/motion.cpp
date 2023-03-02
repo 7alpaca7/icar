@@ -128,30 +128,34 @@ public:
   Params params;                   // 读取控制参数
   uint16_t servoPwm = PWMSERVOMID; // 发送给舵机的PWM
   float speed = 0.3;               // 发送给电机的速度
+  Scene scene = Scene::NormalScene;
   /**
    * @brief 姿态PD控制器
    *
    * @param controlCenter 智能车控制中心
    */
-  void poseCtrl(int controlCenter)
+  void poseCtrl(int controlCenter,Scene scene,PredictResult predict)
   {
+    
+  cout << "进入poseCtrl函数，当前场景: " << getScene(scene) << endl;
+  cout.flush();
+    
     float error = controlCenter - COLSIMAGE / 2; // 图像控制中心转换偏差
     static int errorLast = 0;
+  
 
-    if (error == 0)
-    {
-      servoPwm = PWMSERVOMID;
-      errorLast = 0;
-      return;
-    } // 记录前一次的偏差
-    cout << "controlCenter" << controlCenter << endl;
-    cout << "error1:" << error << endl;
-    if (abs(error - errorLast) > COLSIMAGE / 10)
+  if(scene == Scene::ObstacleScene&&predict.type == LABEL_BLOCK)
+      {
+        cout <<"检测到黑块" << endl;
+        cout << "obs_error1:" << error << endl;
+
+        if (abs(error - errorLast) > COLSIMAGE / 10)
     {
       error = error > errorLast ? errorLast + COLSIMAGE / 10
                                 : errorLast - COLSIMAGE / 10;
     }
-    cout << "error2:" << error << endl;
+    cout << "obs_error2:" << error << endl;
+
     if (error > 0)
     { // 右转时
       params.turnP = abs(error) * params.runP2Right + params.runP1Right;
@@ -163,13 +167,94 @@ public:
     int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
     errorLast = error;
     cout << "pwmDiff" << pwmDiff << endl;
-    if (error>0&&error<42)
+
+    if (error>0&&error<45)
       servoPwm = (uint16_t)(1740 - pwmDiff); 
-    else if(error>42)
+    else if(error>=45)
     servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
-    else if(error<0&&error>-42)  //error<-12
+    else if(error<0&&error>-87)  //error<-12
       servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
-    else if(error<-42)  //error<-12
+    else if(error<=-87)  //error<-12
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
+    else
+      servoPwm = PWMSERVOMID;
+  
+      }
+
+
+else if(scene == Scene::ObstacleScene&&predict.type == LABEL_CONE)
+{
+   {
+        cout <<"检测到锥桶" << endl;
+        cout << "obs_error1:" << error << endl;
+
+        if (abs(error - errorLast) > COLSIMAGE / 10)
+    {
+      error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                : errorLast - COLSIMAGE / 10;
+    }
+    cout << "obs_error2:" << error << endl;
+
+    if (error > 0)
+    { // 右转时
+      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+    }
+    else
+    { // 左转时
+      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+    }
+    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+    errorLast = error;
+    cout << "pwmDiff" << pwmDiff << endl;
+
+    if (error>0&&error<14)
+      servoPwm = (uint16_t)(1740 - pwmDiff); 
+    else if(error>=14)
+    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
+    else if(error<0&&error>-48)  //error<-12
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
+    else if(error<=-48)  //error<-12
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
+    else
+      servoPwm = PWMSERVOMID;
+  
+      }
+
+}
+
+else{
+
+    cout << "controlCenter" << controlCenter << endl;
+    cout << "error1:" << error << endl;
+    if (abs(error - errorLast) > COLSIMAGE / 10)
+    {
+      error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                : errorLast - COLSIMAGE / 10;
+    }
+    cout << "error2:" << error << endl;
+
+
+
+    
+    if (error > 0)
+    { // 右转时
+      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+    }
+    else
+    { // 左转时
+      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+    }
+    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+    errorLast = error;
+    cout << "pwmDiff" << pwmDiff << endl;
+
+    if (error>0&&error<38)
+      servoPwm = (uint16_t)(1740 - pwmDiff); 
+    else if(error>38)
+    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
+    else if(error<0&&error>-38)  //error<-12
+      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
+    else if(error<-38)  //error<-12
       servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
     else
       servoPwm = PWMSERVOMID;
@@ -183,6 +268,12 @@ public:
     if (servoPwm < 1280 || controlCenter>219)
       servoPwm = 1490;
   }
+      }
+    
+      
+    
+  
+  
 
   /**
    * @brief 变加速控制

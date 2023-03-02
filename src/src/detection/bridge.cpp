@@ -46,7 +46,7 @@ public:
                 track.pointsEdgeRight.resize(track.pointsEdgeRight.size() / 2);
             }
             counterSession++;
-            if (counterSession > 40) // 上桥40场图像后失效
+            if (counterSession > 20) // 上桥30场图像后失效
             {
                 counterRec = 0;
                 counterSession = 0;
@@ -69,14 +69,14 @@ public:
             if (counterRec)
             {
                 counterSession++;
-                if (counterRec >= 4 && counterSession < 8)
+                if (counterRec >= 3 && counterSession < 7)
                 {
                     counterRec = 0;
                     counterSession = 0;
                     bridgeEnable = true; // 检测到桥标志
                     return true;
                 }
-                else if (counterSession >= 8)
+                else if (counterSession >= 7)
                 {
                     counterRec = 0;
                     counterSession = 0;

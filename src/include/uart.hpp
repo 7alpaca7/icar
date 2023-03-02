@@ -341,8 +341,7 @@ public:
    * @param speed 速度：m/s
    * @param servo 方向：PWM（500~2500）
    */
-  void carControl(float speed, uint16_t servo)
-  {
+  
     /*if (!isOpen)
       return;
 
@@ -377,11 +376,13 @@ public:
      * @param speed  速度值 (-1.0 ~ 1.0)，将映射为 (-45 ~ 45)
      * @param servo  舵机PWM值 (500 ~ 2500)，将映射为 (-255 ~ 255)
      */
+    void carControl(float speed, uint16_t servo)
+  {
     if (!isOpen)
       return;
 
     uint8_t buff[8];
-    uint16_t scaled_speed = (uint16_t)(speed * 100);
+    uint16_t scaled_speed = (uint16_t)((abs)(speed * 100));
     uint8_t check = 0;            // 初始化校验和
     Bit16Union bit16U;            // 16位数据联合体
     bit16U.uint16 = scaled_speed; // x轴线速度
@@ -393,7 +394,12 @@ public:
     buff[3] = bit16U.buff[0];
     buff[4] = bit16U.buff[1];
 
+    if(speed>=0)
     buff[5] = 1;
+    else
+    buff[5] = 0;
+   
+
     buff[6] = 0; // 保留给校验位
 
     // 计算校验和（只包含前6个字节）

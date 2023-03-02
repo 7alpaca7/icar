@@ -63,6 +63,7 @@ int main(int argc, char const *argv[])
   ControlCenter ctrlCenter; // 控制中心计算类
   VideoCapture capture;     // Opencv相机类
   int countInit = 0;        // 初始化计数器
+  bool flag = false;
 
   // 目标检测类(AI模型文件)
   shared_ptr<Detection> detection = make_shared<Detection>(motion.params.model);
@@ -99,26 +100,24 @@ int main(int argc, char const *argv[])
     cout << "chushihua" << endl;
     display.frameMax = capture.get(CAP_PROP_FRAME_COUNT) - 1;
     // createTrackbar("Frame", "ICAR", &display.index, display.frameMax, [](int, void *) {}); // 创建Opencv图像滑条控件
-    cout << "huatiao" << endl;
-    // setMouseCallback("ICAR", mouseCallback); // 创建鼠标键盘快捷键事件
-    cout << "mouse" << endl;
+    // setMouseCallback("ICAR", mouseCallback);
   }
-
+  cin>>flag;
   // 等待按键发车
   if (!motion.params.debug)
   {
     printf("--------------[等待按键发车!]-------------------\n");
-    uart->buzzerSound(uart->BUZZER_OK); // 祖传提示音效
-    cout << "llai" << endl;
+    //uart->buzzerSound(uart->BUZZER_START);//提示音
+    //cout << "llai" << endl;
     while (!uart->keypress)
-      waitKey(300);
+      waitKey(200);
     cout << "fa" << endl;
     uart->carControl(0, PWMSERVOMID);
     while (ret < 10) // 延时3s
     {
       uart->carControl(0, PWMSERVOMID); // 通信控制车辆停止运动
       // cout<<motion.servoPwm<<endl;
-      waitKey(300);
+      waitKey(150);
       ret++;
     }
     cout << "an" << endl;
@@ -129,6 +128,7 @@ int main(int argc, char const *argv[])
   // 初始化参数
   Scene scene = Scene::NormalScene;     // 初始化场景：常规道路
   Scene sceneLast = Scene::NormalScene; // 记录上一次场景状态
+  PredictResult predict;
   long preTime;
   Mat img;
   cout << motion.params.runP1Left << " " << motion.params.runP1Right << endl;
@@ -141,7 +141,8 @@ int main(int argc, char const *argv[])
       if (display.indexLast == display.index) // 图像帧未更新
       {
         display.show();     // 显示综合绘图
-        usleep(300 * 1000); // us延迟
+        // usleep(300 * 1000); // us延迟
+        waitKey(1); // ms延迟
         continue;
       }
       preTime = chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch()).count();
@@ -244,7 +245,7 @@ int main(int argc, char const *argv[])
     {
       if (obstacle.process(tracking, detection->results))
       {
-        uart->buzzerSound(uart->BUZZER_DING); // 祖传提示音效
+        //uart->buzzerSound(uart->BUZZER_DING); // 祖传提示音效
         scene = Scene::ObstacleScene;
       }
       else
@@ -303,8 +304,10 @@ int main(int argc, char const *argv[])
         motion.speed = motion.params.speedParking;
       else if (scene == Scene::BridgeScene) // 坡道速度
         motion.speed = motion.params.speedBridge;
-      else if (scene == Scene::ObstacleScene) // 危险区速度
-        motion.speed = motion.params.speedObstacle;
+      else if (scene == Scene::ObstacleScene)
+     
+        motion.speed = motion.params.speedObstacle;// 危险区速度
+
       else if (scene == Scene::RingScene) // 环岛速度
         motion.speed = motion.params.speedRing;
       else if (scene == Scene::StopScene)
@@ -314,14 +317,16 @@ int main(int argc, char const *argv[])
       /*********************************************************************************/
       detection->drawBox(imgCorrect); // 图像绘制AI结果
       //
-      motion.poseCtrl(ctrlCenter.controlCenter); // 姿态控制（舵机）
+      motion.poseCtrl(ctrlCenter.controlCenter,scene,predict); // 姿态控制（舵机）
       /*********************************************************************************/
       ctrlCenter.drawImage(tracking, imgCorrect); // 图像绘制路径计算结果（控制中心）
       //
       uart->carControl(motion.speed, motion.servoPwm); // 串口通信控制车辆
       /*********************************************************************************/
-      // imshow("show", imgCorrect);
-      // waitKey(1);
+      if(flag){
+        imshow("show", imgCorrect);
+      waitKey(1);
+      }
       printf("servo:%d,speed:%lf\n", motion.servoPwm, motion.speed);
       //
     }
@@ -389,7 +394,7 @@ int main(int argc, char const *argv[])
       display.setNewWindow(3, getScene(scene), imgRes); // 图像绘制特殊场景识别结果
       display.setNewWindow(4, "Ctrl", imgCorrect);
       display.show(); // 显示综合绘图
-      waitKey(10);
+      waitKey(1);
       cout << "1" << endl;
     }
     //[16] 状态复位

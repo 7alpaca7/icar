@@ -276,7 +276,7 @@ public:
     for (size_t i = 0; i < track.spurroad.size(); i++)
     {
       circle(centerImage,
-             Point(track.spurroad[i].y, track.spurroad[i].x), 1,
+             Point(track.spurroad[i].y, track.spurroad[i].x), 3,
              Scalar(255, 0, 255), -1); // 黄色点
     }
 

@@ -342,45 +342,11 @@ public:
    */
   void carControl(float speed, uint16_t servo)
   {
-    /*if (!isOpen)
-      return;
-
-    uint8_t buff[11];  // 多发送一个字节
-    uint8_t check = 0; // 校验位
-    Bit32Union bit32U;
-    Bit16Union bit16U;
-
-    buff[0] = USB_FRAME_HEAD;   // 通信帧头
-    buff[1] = USB_ADDR_CARCTRL; // 地址
-    buff[2] = 10;               // 帧长
-
-    bit32U.float32 = speed; // X轴线速度
-    for (int i = 0; i < 4; i++)
-      buff[i + 3] = bit32U.buff[i];
-
-    bit16U.uint16 = servo; // Y轴线速度
-    buff[7] = bit16U.buff[0];
-    buff[8] = bit16U.buff[1];
-
-    for (int i = 0; i < 9; i++)
-      check += buff[i];
-    buff[9] = check; // 校验位
-
-    // 循环发送数据
-    for (size_t i = 0; i < 11; i++)
-      transmitByte(buff[i]);
-  }*/
-    // 验证参数范围
-    /**
-     * 发送控制命令到下位机
-     * @param speed  速度值 (-1.0 ~ 1.0)，将映射为 (-45 ~ 45)
-     * @param servo  舵机PWM值 (500 ~ 2500)，将映射为 (-255 ~ 255)
-     */
     if (!isOpen)
       return;
 
     uint8_t buff[8];
-    uint16_t scaled_speed = (uint16_t)(speed * 100);
+    uint16_t scaled_speed = (uint16_t)((abs)(speed * 100));
     uint8_t check = 0;            // 初始化校验和
     Bit16Union bit16U;            // 16位数据联合体
     bit16U.uint16 = scaled_speed; // x轴线速度
@@ -392,7 +358,12 @@ public:
     buff[3] = bit16U.buff[0];
     buff[4] = bit16U.buff[1];
 
+    if(speed>=0)
     buff[5] = 1;
+    else
+    buff[5] = 0;
+   
+
     buff[6] = 0; // 保留给校验位
 
     // 计算校验和（只包含前6个字节）
@@ -405,6 +376,7 @@ public:
     for (size_t i = 0; i < 7; i++)
       transmitByte(buff[i]);
   }
+
 
   /**
    * @brief 蜂鸣器音效控制
