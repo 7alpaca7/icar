@@ -45,6 +45,7 @@ link_directories(${ONNX_LIBRARY_DIRS})
 set(MAIN_EXECUTABLE_NAME "main")  # 改为非保留名称
 set(MAIN_SOURCES ${PROJECT_SOURCE_DIR}/src/test.cpp)  # 假设你的主程序是test.cpp
 
+
 add_executable(${MAIN_EXECUTABLE_NAME} ${MAIN_SOURCES})
 
 # 链接库

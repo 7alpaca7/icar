@@ -26,7 +26,6 @@
 #include <opencv2/opencv.hpp>
 #include "../../include/common.hpp"
 #include "../../include/detection.hpp" // Ai模型预测
-// #include "../icar.cpp"
 
 using namespace std;
 using namespace cv;
@@ -90,16 +89,21 @@ public:
         {
             icar_predict.type = LABEL_CONE;
         }
-
+        reverse(track.pointsEdgeLeft.begin(), track.pointsEdgeLeft.end());
+        reverse(track.pointsEdgeRight.begin(), track.pointsEdgeRight.end());
         // 障碍物方向判定（左/右）
-        int row = track.pointsEdgeLeft.size() - (resultsObs[index].y + resultsObs[index].height - track.rowCutUp);
-        if (row < 0) // 无需规划路径
+        // row是下标
+        // int row = track.pointsEdgeLeft.size() - (resultsObs[index].y + resultsObs[index].height - track.rowCutUp);
+        // 这里将row变为识别物的x位置
+        int row = resultsObs[index].y + resultsObs[index].height;
+        // 当row减去偏移量后，大于两条边线的点集数量后为不需要重新规划
+        if (row - track.LP >= track.pointsEdgeLeft.size() && row - track.RP >= track.pointsEdgeRight.size()) // 无需规划路径
             return enable;
 
-        int disLeft = resultsObs[index].x + resultsObs[index].width - track.pointsEdgeLeft[row].y;
-        int disRight = track.pointsEdgeRight[row].y - resultsObs[index].x;
-        if (resultsObs[index].x + resultsObs[index].width > track.pointsEdgeLeft[row].y &&
-            track.pointsEdgeRight[row].y > resultsObs[index].x &&
+        int disLeft = resultsObs[index].x + resultsObs[index].width - track.pointsEdgeLeft[row - track.LP].y;
+        int disRight = track.pointsEdgeRight[row - track.RP].y - resultsObs[index].x;
+        if (resultsObs[index].x + resultsObs[index].width > track.pointsEdgeLeft[row - track.LP].y &&
+            track.pointsEdgeRight[row - track.RP].y > resultsObs[index].x &&
             disLeft <= disRight) //[1] 障碍物靠左
         {
             if (resultsObs[index].type == LABEL_BLOCK) // 黑色路障特殊处理
@@ -109,7 +113,7 @@ public:
             else if (resultsObs[index].type == LABEL_PEDESTRIAN) // 行人特殊处理
             {
                 vector<POINT> points(4); // 三阶贝塞尔曲线
-                points[0] = track.pointsEdgeLeft[row / 2];
+                points[0] = track.pointsEdgeLeft[(row - track.LP) / 2];
                 points[1] = {resultsObs[index].y + resultsObs[index].height, resultsObs[index].x + resultsObs[index].width * 2};
                 points[2] = {(resultsObs[index].y + resultsObs[index].height + resultsObs[index].y) / 2, resultsObs[index].x + resultsObs[index].width * 2};
                 if (resultsObs[index].y > track.pointsEdgeLeft[track.pointsEdgeLeft.size() - 1].x)
@@ -117,8 +121,8 @@ public:
                 else
                     points[3] = {resultsObs[index].y, resultsObs[index].x + resultsObs[index].width};
 
-                track.pointsEdgeLeft.resize((size_t)row / 2); // 删除错误路线
-                vector<POINT> repair = Bezier(0.01, points);  // 重新规划车道线
+                track.pointsEdgeLeft.resize((size_t)(row - track.LP) / 2); // 删除错误路线
+                vector<POINT> repair = Bezier(0.01, points);               // 重新规划车道线
                 for (size_t i = 0; i < repair.size(); i++)
                     track.pointsEdgeLeft.push_back(repair[i]);
                 curtailTracking(track, false); // 缩减优化车道线（双车道→单车道）
@@ -126,7 +130,7 @@ public:
             else
             {
                 vector<POINT> points(4); // 三阶贝塞尔曲线
-                points[0] = track.pointsEdgeLeft[row / 2];
+                points[0] = track.pointsEdgeLeft[(row - track.LP) / 2];
                 points[1] = {resultsObs[index].y + resultsObs[index].height, resultsObs[index].x + resultsObs[index].width * 2};
                 points[2] = {(resultsObs[index].y + resultsObs[index].height + resultsObs[index].y) / 2, resultsObs[index].x + resultsObs[index].width * 2};
                 if (resultsObs[index].y > track.pointsEdgeLeft[track.pointsEdgeLeft.size() - 1].x)
@@ -134,14 +138,14 @@ public:
                 else
                     points[3] = {resultsObs[index].y, resultsObs[index].x + resultsObs[index].width};
 
-                track.pointsEdgeLeft.resize((size_t)row / 2); // 删除错误路线
-                vector<POINT> repair = Bezier(0.01, points);  // 重新规划车道线
+                track.pointsEdgeLeft.resize((size_t)(row - track.LP) / 2); // 删除错误路线
+                vector<POINT> repair = Bezier(0.01, points);               // 重新规划车道线
                 for (size_t i = 0; i < repair.size(); i++)
                     track.pointsEdgeLeft.push_back(repair[i]);
             }
         }
-        else if (resultsObs[index].x + resultsObs[index].width > track.pointsEdgeLeft[row].y &&
-                 track.pointsEdgeRight[row].y > resultsObs[index].x &&
+        else if (resultsObs[index].x + resultsObs[index].width > track.pointsEdgeLeft[row - track.LP].y &&
+                 track.pointsEdgeRight[row - track.RP].y > resultsObs[index].x &&
                  disLeft > disRight) //[2] 障碍物靠右
         {
             if (resultsObs[index].type == LABEL_BLOCK) // 黑色路障特殊处理
@@ -151,7 +155,7 @@ public:
             else if (resultsObs[index].type == LABEL_PEDESTRIAN) // 行人特殊处理
             {
                 vector<POINT> points(4); // 三阶贝塞尔曲线
-                points[0] = track.pointsEdgeRight[row / 2];
+                points[0] = track.pointsEdgeRight[(row - track.RP) / 2];
                 points[1] = {resultsObs[index].y + resultsObs[index].height, resultsObs[index].x - resultsObs[index].width};
                 points[2] = {(resultsObs[index].y + resultsObs[index].height + resultsObs[index].y) / 2, resultsObs[index].x - resultsObs[index].width};
                 if (resultsObs[index].y > track.pointsEdgeRight[track.pointsEdgeRight.size() - 1].x)
@@ -159,8 +163,8 @@ public:
                 else
                     points[3] = {resultsObs[index].y, resultsObs[index].x};
 
-                track.pointsEdgeRight.resize((size_t)row / 2); // 删除错误路线
-                vector<POINT> repair = Bezier(0.01, points);   // 重新规划车道线
+                track.pointsEdgeRight.resize((size_t)(row - track.RP) / 2); // 删除错误路线
+                vector<POINT> repair = Bezier(0.01, points);                // 重新规划车道线
                 for (size_t i = 0; i < repair.size(); i++)
                     track.pointsEdgeRight.push_back(repair[i]);
                 curtailTracking(track, true); // 缩减优化车道线（双车道→单车道）
@@ -168,7 +172,7 @@ public:
             else
             {
                 vector<POINT> points(4); // 三阶贝塞尔曲线
-                points[0] = track.pointsEdgeRight[row / 2];
+                points[0] = track.pointsEdgeRight[(row - track.RP) / 2];
                 points[1] = {resultsObs[index].y + resultsObs[index].height, resultsObs[index].x - resultsObs[index].width};
                 points[2] = {(resultsObs[index].y + resultsObs[index].height + resultsObs[index].y) / 2, resultsObs[index].x - resultsObs[index].width};
                 if (resultsObs[index].y > track.pointsEdgeRight[track.pointsEdgeRight.size() - 1].x)
@@ -176,13 +180,14 @@ public:
                 else
                     points[3] = {resultsObs[index].y, resultsObs[index].x};
 
-                track.pointsEdgeRight.resize((size_t)row / 2); // 删除错误路线
-                vector<POINT> repair = Bezier(0.01, points);   // 重新规划车道线
+                track.pointsEdgeRight.resize((size_t)(row - track.RP) / 2); // 删除错误路线
+                vector<POINT> repair = Bezier(0.01, points);                // 重新规划车道线
                 for (size_t i = 0; i < repair.size(); i++)
                     track.pointsEdgeRight.push_back(repair[i]);
             }
         }
-
+        reverse(track.pointsEdgeLeft.begin(), track.pointsEdgeLeft.end());
+        reverse(track.pointsEdgeRight.begin(), track.pointsEdgeRight.end());
         return enable;
     }
 

@@ -378,6 +378,11 @@ public:
      */
     void carControl(float speed, uint16_t servo)
   {
+    // static float lastSpeed = 0;
+    // static uint16_t lastServo = PWMSERVOMID;
+    // if(fabs(speed - lastSpeed)>0.01 || abs((int)servo - (int)lastServo) > 5)
+    // {
+
     if (!isOpen)
       return;
 
@@ -390,14 +395,18 @@ public:
     buff[1] = bit16U.buff[0];
     buff[2] = bit16U.buff[1];
 
-    bit16U.uint16 = servo; // Y轴线速度
+    bit16U.uint16 = (abs)servo; // Y轴线速度
     buff[3] = bit16U.buff[0];
     buff[4] = bit16U.buff[1];
 
-    if(speed>=0)
-    buff[5] = 1;
-    else
+    if(speed>=0&&servo>=0)
     buff[5] = 0;
+    else if(speed>=0&&servo<0)
+    buff[5] = 1;
+    else if(speed<0&&servo>=0)
+    buff[5] = 2;
+    else if(speed<0&&servo<0)
+    buff[5] = 3;  
    
 
     buff[6] = 0; // 保留给校验位
@@ -411,6 +420,11 @@ public:
     // 循环发送所有8个字节数据
     for (size_t i = 0; i < 7; i++)
       transmitByte(buff[i]);
+    //   lastSpeed = speed;
+    // lastServo = servo;
+
+    // }
+    
   }
 
   /**

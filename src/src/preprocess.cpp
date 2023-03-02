@@ -69,15 +69,20 @@ public:
 	 * @return Mat	二值化图像
 	 */
 	Mat binaryzation(Mat &frame)
-	{
-		Mat imageGray, imageBinary;
+    {
+        Mat gray, blurred, binary;
 
-		cvtColor(frame, imageGray, COLOR_BGR2GRAY); // RGB转灰度图
+        // 1. 转灰度
+        cvtColor(frame, gray, COLOR_BGR2GRAY);
 
-		threshold(imageGray, imageBinary, 0, 255, THRESH_OTSU); // OTSU二值化方法
+        // 2. 高斯模糊（降低纹理或干扰）
+        GaussianBlur(gray, blurred, Size(3, 3), 0);
 
-		return imageBinary;
-	}
+        // 3. 使用大津法自动阈值（白线为亮）
+        threshold(blurred, binary, 0, 255, THRESH_BINARY | THRESH_OTSU);
+
+        return binary;
+    }
 
 	/**
 	 * @brief 矫正图像

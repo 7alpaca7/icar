@@ -18,7 +18,7 @@ private:
     int search = 30;                                         // 连续贴合图像边缘的搜索范围
     int square = 1;                                          // 贴边的阈值
     int yes = 3;                                             // 连续贴边的次数
-    bool textDebug = false;                                   // 文字debug
+    bool textDebug = false;                                  // 文字debug
     int diuYu = 20;                                          // 丢线阈值
 
 public:

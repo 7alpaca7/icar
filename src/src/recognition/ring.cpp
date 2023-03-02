@@ -80,7 +80,7 @@ private:
     POINT RUPoint, RZPoint, RDPoint, ROPoint;    // 分别为入环上角点，入环中角点，入环下角点，出环角点
     bool textDeBug = false;                      // 日志输出debug开关
     int diuYu = 20;                              // 丢线允许的阈值
-    int zhen = 3;                                // 连续出现帧数的阈值
+    int zhen = 10;                                // 连续出现帧数的阈值
     int ZDcount = 0, UDcount = 0, TypeCount = 0; // 当前中下角点连续出现的帧数，中上角点连续出现的帧数
     int JieLeft = 1, JieRight = COLSIMAGE - 2;   // 图像左右两边的边界
     int jian = 10;                               // 判断上下角点前后的间隔
@@ -376,9 +376,14 @@ private:
         //     return false;
         // }
         /* 这里感觉限制的有点刻意了，虽然在看见环的情况下，一边几乎不丢线 */
+        if(textDeBug){
+            cout<<"track.diuLeft:"<<track.diuLeft<<", track.LGnum:"<<track.LGnum<<endl;
+        cout<<"track.diuRight:"<<track.diuRight<<", track.RGnum:"<<track.RGnum<<endl;
+        cout<<"diuYu:"<<diuYu<<endl;
+        }
+        // if ((track.diuLeft >= diuYu && track.LGnum >= 2 && track.diuLeft > track.diuRight) || (track.diuRight >= diuYu && track.RGnum >= 2 && track.diuRight > track.diuLeft))
         if ((track.diuLeft >= diuYu && track.LGnum >= 2 && track.diuLeft > track.diuRight) || (track.diuRight >= diuYu && track.RGnum >= 2 && track.diuRight > track.diuLeft))
             return true;
-          cout<<"不满足条件"<<endl;
         return false;
     }
 
@@ -457,9 +462,43 @@ private:
         }
         return -1;
     }
-    // void OutBu(vector<POINT> &edgeW, vector<POINT> &edgeN, const int &)
-    // {
-    // }
+
+    void OutBu(vector<POINT> &edgeW, vector<POINT> &edgeN, int bian, POINT start, POINT end)
+    {
+        addLine(edgeW, start, end);
+        // for (int i = 0; i < edgeN.size(); i++)
+        // {
+        //     if (edgeN[i].y == bian)
+        //         break;
+        //     edgeN[i].x = i;
+        //     edgeN[i].y = bian;
+        // }
+    }
+    void clean(vector<POINT> &edge, int i)
+    {
+        int j = 0;
+        while (j < edge.size() && edge[j].x <= i)
+            j++;
+        edge.erase(edge.begin(), edge.begin() + j);
+    }
+    void addPoint(vector<POINT> &edge, POINT &p1, POINT &p2, POINT &p3, bool del)
+    {
+        vector<POINT> input = {p1, p2, p3};
+        input = Bezier(0.02, input);
+        if (del)
+        {
+            clean(edge, p3.x + 5);
+            reverse(edge.begin(), edge.end());
+            for (int i = input.size() - 1; i >= 0; i--)
+                edge.push_back(input[i]);
+            reverse(edge.begin(), edge.end());
+        }
+        else
+        {
+            edge.clear();
+            edge = input;
+        }
+    }
 
 public:
     bool process(Tracking &track)
@@ -473,7 +512,12 @@ public:
         {
             // 1.识别第一步判环条件不够直接清
             if (!is_OK(track))
+                {
+                    if(textDeBug)
+                    cout<<"fw,条件都不满足"<<endl;
                 return false;
+                }
+                
             // 2.判环方向
             if (track.LGnum > track.RGnum)
                 ringSide = RingType::RingLeft;
@@ -588,11 +632,15 @@ public:
                 {
                     if (ringSide == RingType::RingLeft)
                     {
-                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.pointsEdgeRight[track.spurroad[zhong_index].x - track.RP]);
+                        clean(track.pointsEdgeLeft, track.spurroad[up_index].x);
+                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.pointsEdgeRight[track.spurroad[zhong_index].x - track.LP]);
+                        clean(track.pointsEdgeRight, track.spurroad[up_index].x);
                     }
                     else
                     {
-                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.pointsEdgeLeft[track.spurroad[zhong_index].x - track.LP]);
+                        clean(track.pointsEdgeRight, track.spurroad[up_index].x);
+                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.pointsEdgeLeft[track.spurroad[zhong_index].x - track.RP]);
+                        clean(track.pointsEdgeLeft, track.spurroad[up_index].x);
                     }
                 }
             }
@@ -648,24 +696,58 @@ public:
 
                 if (zhong_index != -1)
                 {
+
                     if (ringSide == RingType::RingLeft)
                     {
-                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.pointsEdgeRight[track.spurroad[zhong_index].x - track.RP]);
+
+                        // addLine(track.pointsEdgeRight, track.spurroad[up_index], track.pointsEdgeRight[track.spurroad[zhong_index].x - track.LP]);
+                        // clean(track.pointsEdgeRight, track.spurroad[zhong_index].x + 5);
+                        // clean(track.pointsEdgeLeft, track.spurroad[up_index].x + 5);
+                        // POINT p1 = track.spurroad[up_index], p2 = track.pointsEdgeRight[track.spurroad[up_index].x - track.LP], p3 = track.pointsEdgeRight[track.spurroad[zhong_index].x-track.LP];
+                        clean(track.pointsEdgeLeft, track.spurroad[up_index].x + 5);
+                        POINT p1 = track.spurroad[up_index];
+                        POINT p2 = track.pointsEdgeRight[track.spurroad[up_index].x - track.LP];
+                        POINT p3 = track.R_Start;
+                        addPoint(track.pointsEdgeRight, p1, p2, p3, false);
                     }
                     else
                     {
-                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.pointsEdgeLeft[track.spurroad[zhong_index].x - track.LP]);
+
+                        // addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.pointsEdgeLeft[track.spurroad[zhong_index].x - track.RP]);
+                        // clean(track.pointsEdgeRight, track.spurroad[up_index].x + 5);
+                        // clean(track.pointsEdgeLeft, track.spurroad[zhong_index].x + 5);
+                        clean(track.pointsEdgeRight, track.spurroad[up_index].x + 5);
+                        POINT p1 = track.spurroad[up_index];
+                        POINT p2 = track.pointsEdgeLeft[track.spurroad[up_index].x - track.RP];
+                        POINT p3 = track.L_Start;
+                        addPoint(track.pointsEdgeLeft, p1, p2, p3, false);
                     }
                 }
                 else if (zhong_index == -1)
                 {
                     if (ringSide == RingType::RingLeft)
                     {
-                        addLine(track.pointsEdgeRight, track.spurroad[up_index], track.R_Start);
+
+                        // addLine(track.pointsEdgeRight, track.spurroad[up_index], track.R_Start);
+                        // clean(track.pointsEdgeRight, track.spurroad[up_index].x + 5);
+                        // clean(track.pointsEdgeLeft, track.spurroad[up_index].x + 5);
+                        clean(track.pointsEdgeLeft, track.spurroad[up_index].x + 5);
+                        POINT p1 = track.spurroad[up_index];
+                        POINT p2 = track.pointsEdgeRight[track.spurroad[up_index].x - track.LP];
+                        POINT p3 = track.R_Start;
+                        addPoint(track.pointsEdgeRight, p1, p2, p3, false);
                     }
                     else
                     {
-                        addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.L_Start);
+
+                        // addLine(track.pointsEdgeLeft, track.spurroad[up_index], track.L_Start);
+                        // clean(track.pointsEdgeRight, track.spurroad[up_index].x + 5);
+                        // clean(track.pointsEdgeLeft, track.spurroad[up_index].x + 5);
+                        clean(track.pointsEdgeRight, track.spurroad[up_index].x + 5);
+                        POINT p1 = track.spurroad[up_index];
+                        POINT p2 = track.pointsEdgeLeft[track.spurroad[up_index].x - track.RP];
+                        POINT p3 = track.L_Start;
+                        addPoint(track.pointsEdgeLeft, p1, p2, p3, false);
                     }
                 }
             }
@@ -730,24 +812,61 @@ public:
             }
             if (textDeBug)
                 cout << "TypeCount=" << TypeCount << " ,out_index=" << out_index << endl;
-            if (TypeCount >= zhen)
+            if (TypeCount >= zhen+10)
             {
                 nowType = RingStep::Finish;
                 TypeCount = 0;
                 out_flag = false;
                 return true;
             }
-            if (out_index != -1)
+            POINT p1 = POINT(ROWSIMAGE / 2, 0);
+            POINT p2 = POINT(ROWSIMAGE - 1, 0);
+            POINT p3 = POINT(ROWSIMAGE / 2, COLSIMAGE - 1);
+            POINT p4 = POINT(ROWSIMAGE - 1, COLSIMAGE - 1);
+            if (ringSide == RingType::RingLeft)
             {
-                if (ringSide == RingType::RingLeft)
-                {
-                    addLine(track.pointsEdgeRight, POINT(0, 0), track.spurroad[out_index]);
-                }
-                else
-                {
-                    addLine(track.pointsEdgeLeft, POINT(0, COLSIMAGE - 1), track.spurroad[out_index]);
-                }
+                // addLine(track.pointsEdgeRight, POINT(0, 0), track.spurroad[out_index]);
+                // OutBu(track.pointsEdgeRight, track.pointsEdgeLeft, JieLeft, POINT(0, 0), POINT(ROWSIMAGE - 1, JieRight));
+                track.pointsEdgeLeft.clear();
+                track.pointsEdgeLeft = {p1, p2};
+                track.pointsEdgeLeft = Bezier(0.01, track.pointsEdgeLeft);
+                addPoint(track.pointsEdgeRight, p1, p3, p4, false);
             }
+            else
+            {
+                // addLine(track.pointsEdgeLeft, POINT(0, COLSIMAGE - 1), track.spurroad[out_index]);
+                // OutBu(track.pointsEdgeLeft, track.pointsEdgeRight, JieRight, POINT(0, COLSIMAGE - 1), POINT(ROWSIMAGE - 1, JieLeft));
+                track.pointsEdgeRight.clear();
+                track.pointsEdgeRight = {p3, p4};
+                track.pointsEdgeRight = Bezier(0.01, track.pointsEdgeRight);
+                addPoint(track.pointsEdgeLeft, p3, p1, p2, false);
+            }
+            // if (out_index != -1)
+            // {
+            //     if (ringSide == RingType::RingLeft)
+            //     {
+            //         // addLine(track.pointsEdgeRight, POINT(0, 0), track.spurroad[out_index]);
+            //         OutBu(track.pointsEdgeRight, track.pointsEdgeLeft, JieLeft, POINT(0, 0), track.spurroad[out_index]);
+            //     }
+            //     else
+            //     {
+            //         // addLine(track.pointsEdgeLeft, POINT(0, COLSIMAGE - 1), track.spurroad[out_index]);
+            //         OutBu(track.pointsEdgeLeft, track.pointsEdgeRight, JieRight, POINT(0, COLSIMAGE - 1), track.spurroad[out_index]);
+            //     }
+            // }
+            // else
+            // {
+            //     if (ringSide == RingType::RingLeft)
+            //     {
+            //         // addLine(track.pointsEdgeRight, POINT(0, 0), track.spurroad[out_index]);
+            //         OutBu(track.pointsEdgeRight, track.pointsEdgeLeft, JieLeft, POINT(0, 0), POINT(track.rowEnd, JieRight));
+            //     }
+            //     else
+            //     {
+            //         // addLine(track.pointsEdgeLeft, POINT(0, COLSIMAGE - 1), track.spurroad[out_index]);
+            //         OutBu(track.pointsEdgeLeft, track.pointsEdgeRight, JieRight, POINT(0, COLSIMAGE - 1), POINT(track.rowEnd, JieLeft));
+            //     }
+            // }
         }
         else if (nowType == RingStep::Finish)
         {

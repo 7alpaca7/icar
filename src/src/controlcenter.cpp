@@ -60,6 +60,8 @@ public:
     track.stdevLeft = track.stdevEdgeCal(track.pointsEdgeLeft, ROWSIMAGE);
     track.stdevRight = track.stdevEdgeCal(track.pointsEdgeRight, ROWSIMAGE);
 
+    reverse(track.pointsEdgeLeft.begin(), track.pointsEdgeLeft.end());
+    reverse(track.pointsEdgeRight.begin(), track.pointsEdgeRight.end());
     // 边缘有效行优化
     // if ((track.stdevLeft < 80 && track.stdevRight > 50) ||
     //     (track.stdevLeft > 60 && track.stdevRight < 50)) {
@@ -230,7 +232,7 @@ public:
     {
       countOutlineA++;
       countOutlineB = 0;
-      if (countOutlineA > 20)
+      if (countOutlineA > 50)
         return true;
     }
     else
@@ -395,7 +397,7 @@ private:
         else
           counter = 0;
       }
-
+//
       offsetHeight = pointsEdge[rowStart].x - pointsEdge[0].x;
       counter = 0;
       for (size_t i = rowStart; i < pointsEdge.size(); i += step)

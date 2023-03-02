@@ -43,12 +43,12 @@ public:
     int diuLeft = 0;                       // 左边丢线数量
     int diuRight = 0;                      // 右边丢线数量
     int rowCutUp = 3;                      // 图像顶部切行
-    int rowCutBottom = 50;                 // 图像底部切行
+    int rowCutBottom = 30;                 // 图像底部切行
     int rowEnd = ROWSIMAGE - rowCutBottom; // 底部起始
     bool save = false;                     // 是否打印图像
     // int jian = 7;
     int window = 5;                // nms抑制的窗口大小
-    int point_num = 200, dist = 7; // 等间距采样的点数和间距
+    int point_num = 190, dist = 7; // 等间距采样的点数和间距
     int kernel = 5;                // 滤波的窗口
     int LGnum = 0, RGnum = 0;      // 左右拐点数量
     POINT L_Start, R_Start;        // 左右边线起始点
@@ -318,63 +318,120 @@ public:
     // 提取的左右边线，是从上至下的
     void get_line(vector<POINT> &left, vector<POINT> &right)
     {
-        vector<bool> leftVis(ROWSIMAGE + 1, false);
-        vector<bool> rightVis(ROWSIMAGE + 1, false);
+        vector<int> leftVis(ROWSIMAGE + 1, -1);
+        vector<int> rightVis(ROWSIMAGE + 1, -1);
         cout << endl;
+        // for (int i = right.size() - 1; i >= 0; i--)
+        // {
+        //     if (right.size() > 0 && rightVis[right[i].x] == false && right[i].x <= rowEnd && right[i].x >= 3)
+        //     {
+        //         rightVis[right[i].x] = true;
+        //         pointsEdgeRight.push_back(right[i]);
+        //         widthblock[right[i].x] = right[i].y; // 记录色块宽度
+        //         if (textDebug)
+        //         {
+        //             cout << "right[" << index << "].x=" << right[i].x << ",right[" << index << "].y=" << right[i].y << endl;
+        //         }
+        //         index++;
+        //         if (right[i].y == COLSIMAGE - 2)
+        //             diuRight++;
+        //         else
+        //             validRowsRight++;
+        //         if (right[i].y < MinRightY)
+        //             MinRightY = right[i].y;
+        //     }
+        //     // else if (right.size() > 0 && rightVis[right[i].x] == true && right[i].x <= rowEnd && right[i].x >= 3)
+        //     // {
+        //     //     right.erase(right.begin() + i);
+        //     //     // i+=1;
+        //     // }
+        // }
+        // if (right.size() > point_num)
+        // {
+        //     reverse(right.begin(), right.end());
+        //     right.resize(point_num);
+        //     right.RP = right.back().x;
+        //     reverse(right.begin(), right.end());
+        // }
         int index = 0;
-        for (int i = right.size() - 1; i >= 0; i--)
+        for (int i = 0; i < right.size(); i++)
         {
-            if (right.size() > 0 && rightVis[right[i].x] == false && right[i].x <= rowEnd && right[i].x >= 3)
+            if (right[i].x > 3 && right[i].x <= rowEnd)
             {
-                rightVis[right[i].x] = true;
-                pointsEdgeRight.push_back(right[i]);
-                widthblock[right[i].x] = right[i].y; // 记录色块宽度
-                if (textDebug)
+                if (rightVis[right[i].x] == -1)
                 {
-                    cout << "right[" << index << "].x=" << right[i].x << ",right[" << index << "].y=" << right[i].y << endl;
+                    if (index < point_num)
+                    {
+                        rightVis[right[i].x] = index;
+                        index++;
+                        pointsEdgeRight.push_back(POINT(right[i].x, right[i].y));
+                    }
+                    if (right[i].y == COLSIMAGE - 2)
+                        diuRight++;
                 }
-                index++;
-                if (right[i].y == COLSIMAGE - 2)
-                    diuRight++;
                 else
-                    validRowsRight++;
-                if (right[i].y < MinRightY)
-                    MinRightY = right[i].y;
+                {
+                    pointsEdgeRight[rightVis[right[i].x]].x = right[i].x;
+                    pointsEdgeRight[rightVis[right[i].x]].y = right[i].y;
+                    if (right[i].y != COLSIMAGE - 2)
+                        diuRight++;
+                }
             }
-            // else if (right.size() > 0 && rightVis[right[i].x] == true && right[i].x <= rowEnd && right[i].x >= 3)
-            // {
-            //     right.erase(right.begin() + i);
-            //     // i+=1;
-            // }
         }
+        reverse(pointsEdgeRight.begin(), pointsEdgeRight.end());
         RP = pointsEdgeRight[0].x;
         index = 0;
-        for (int i = left.size() - 1; i >= 0; i--)
+        // for (int i = left.size() - 1; i >= 0; i--)
+        // {
+        //     if (left.size() >= 0 && leftVis[left[i].x] == false && left[i].x <= rowEnd && left[i].x >= 3)
+        //     {
+        //         leftVis[left[i].x] = true;
+        //         pointsEdgeLeft.push_back(left[i]);
+        //         if (textDebug)
+        //         {
+        //             cout << "left[" << index << "].x=" << left[i].x << ",left[" << index << "].y=" << left[i].y << endl;
+        //         }
+        //         index++;
+        //         if (left[i].y == 1)
+        //             diuLeft++;
+        //         else
+        //             validRowsLeft++;
+        //         if (widthblock[left[i].x] < COLSIMAGE - 1)
+        //             widthblock[left[i].x] -= left[i].y; // 记录色块宽度
+        //         if (left[i].y > MaxLeftY)
+        //             MaxLeftY = left[i].y;
+        //     }
+        //     // else if (left.size() >= 0 && leftVis[left[i].x] == true && left[i].x <= rowEnd && left[i].x >= 3)
+        //     // {
+        //     //     left.erase(left.begin() + i);
+        //     //     // i+=1;
+        //     // }
+        // }
+        for (int i = 0; i < left.size(); i++)
         {
-            if (left.size() >= 0 && leftVis[left[i].x] == false && left[i].x <= rowEnd && left[i].x >= 3)
+            if (left[i].x > 3 && left[i].x <= rowEnd)
             {
-                leftVis[left[i].x] = true;
-                pointsEdgeLeft.push_back(left[i]);
-                if (textDebug)
+                if (leftVis[left[i].x] == -1)
                 {
-                    cout << "left[" << index << "].x=" << left[i].x << ",left[" << index << "].y=" << left[i].y << endl;
+                    if (index < point_num)
+                    {
+                        leftVis[left[i].x] = index;
+                        index++;
+                        pointsEdgeLeft.push_back(POINT(left[i].x, left[i].y));
+                    }
+                    if (left[i].y == 1)
+                        diuLeft++;
                 }
-                index++;
-                if (left[i].y == 1)
-                    diuLeft++;
                 else
-                    validRowsLeft++;
-                if (widthblock[left[i].x] < COLSIMAGE - 1)
-                    widthblock[left[i].x] -= left[i].y; // 记录色块宽度
-                if (left[i].y > MaxLeftY)
-                    MaxLeftY = left[i].y;
+                {
+                    pointsEdgeLeft[leftVis[left[i].x]].x = left[i].x;
+                    pointsEdgeLeft[leftVis[left[i].x]].y = left[i].y;
+                    if (left[i].y != COLSIMAGE - 2)
+                        diuLeft++;
+                }
             }
-            // else if (left.size() >= 0 && leftVis[left[i].x] == true && left[i].x <= rowEnd && left[i].x >= 3)
-            // {
-            //     left.erase(left.begin() + i);
-            //     // i+=1;
-            // }
         }
+        reverse(pointsEdgeLeft.begin(), pointsEdgeLeft.end());
         LP = pointsEdgeLeft[0].x;
         // for (int i = 0; i < widthblock.size(); i++)
         // {

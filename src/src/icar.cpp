@@ -75,7 +75,7 @@ int main(int argc, char const *argv[])
   if (ret != 0)
   {
     printf("[Error] Uart Open failed!\n");
-    return -1;
+    exit(0);
   }
   uart->startReceive(); // 启动数据接收子线程
 
@@ -88,7 +88,7 @@ int main(int argc, char const *argv[])
   if (!capture.isOpened())
   {
     printf("can not open video device!!!\n");
-    return 0;
+    exit(0);
   }
   capture.set(CAP_PROP_FRAME_WIDTH, COLSIMAGE);  // 设置图像分辨率
   capture.set(CAP_PROP_FRAME_HEIGHT, ROWSIMAGE); // 设置图像分辨率
@@ -103,15 +103,21 @@ int main(int argc, char const *argv[])
     // createTrackbar("Frame", "ICAR", &display.index, display.frameMax, [](int, void *) {}); // 创建Opencv图像滑条控件
     // setMouseCallback("ICAR", mouseCallback);
   }
-  cin >> flag;
   // 等待按键发车
   if (!motion.params.debug)
   {
     printf("--------------[等待按键发车!]-------------------\n");
     uart->buzzerSound(uart->BUZZER_START); // 提示音
     // cout << "llai" << endl;
-    while (!uart->keypress)
-      waitKey(200);
+    // while (!uart->keypress)
+    //   waitKey(200);
+    do{
+      cout<<"是否开启图像:";
+      cin>>flag;
+      uart->keypress=true;
+      if(!uart->keypress)
+      cout<<"发车失败"<<endl;
+    }while(!uart->keypress);
     cout << "fa" << endl;
     uart->carControl(0, PWMSERVOMID);
     while (ret < 10) // 延时3s
@@ -133,6 +139,7 @@ int main(int argc, char const *argv[])
   PredictResult icar_predict;
   Mat img;
   cout << motion.params.runP1Left << " " << motion.params.runP1Right << endl;
+  bool banMaFlag = false;
   while (1)
   {
     //[01] 视频源读取
@@ -183,20 +190,29 @@ int main(int argc, char const *argv[])
       tracking.drawImage(imgTrack); // 图像绘制赛道识别结果
       display.setNewWindow(2, "Track", imgTrack);
     }
-
+    
     //[05] 停车区检测
     if (motion.params.stop)
     {
       if (stopArea.process(detection->results))
       {
-        scene = Scene::StopScene;
+        if(!banMaFlag)
+        {
+          banMaFlag = true;
+        }
+        else{
+          scene = Scene::StopScene;
+        int count = 0;
         if (stopArea.countExit > 20)
         {
+          while(count<=500)
+          count++;
           uart->carControl(0, PWMSERVOMID); // 控制车辆停止运动
           sleep(1);
           // waitKey(1);
           printf("-----> [parking] System Exit!!! <-----\n");
           exit(0); // 程序退出
+        }
         }
       }
     }
@@ -213,9 +229,9 @@ int main(int argc, char const *argv[])
 
     //[07] 临时停车区检测
     if ((scene == Scene::NormalScene || scene == Scene::LaybyScene) &&
-        motion.params.catering)
+        motion.params.layby)
     {
-      if (layby.process(tracking, imgBinary, detection->results)) // 传入二值化图像进行再处理
+      if (layby.process(tracking, imgBinary, detection->results,motion)) // 传入二值化图像进行再处理
         scene = Scene::LaybyScene;
       else
         scene = Scene::NormalScene;
@@ -323,10 +339,13 @@ int main(int argc, char const *argv[])
       /*********************************************************************************/
       ctrlCenter.drawImage(tracking, imgCorrect); // 图像绘制路径计算结果（控制中心）
       //
-      uart->carControl(motion.speed, motion.servoPwm); // 串口通信控制车辆
+      uart->carControl(motion.speed, motion.error); // 串口通信控制车辆
       /*********************************************************************************/
       if (flag)
       {
+        layby.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
+        //circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+        //putText(imgCorrect, "T", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
         imshow("show", imgCorrect);
         waitKey(1);
       }

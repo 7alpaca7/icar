@@ -20,7 +20,7 @@
  * @copyright Copyright (c) 2023
  *
  */
-
+#pragma once
 #include "../include/common.hpp"
 #include "../include/json.hpp"
 #include "controlcenter.cpp"
@@ -130,194 +130,224 @@ public:
   uint16_t servoPwm = PWMSERVOMID; // 发送给舵机的PWM
   float speed = 0.3;               // 发送给电机的速度
   Scene scene = Scene::NormalScene;
+  float error;
   /**
    * @brief 姿态PD控制器
    *
    * @param controlCenter 智能车控制中心
    */
-  void poseCtrl(int controlCenter,Scene scene,PredictResult &predict)
+  void poseCtrl(int controlCenter, Scene scene, PredictResult &predict)
   {
-    
-  cout << "进入poseCtrl函数，当前场景: " << getScene(scene)<< ",predict.type = "<<predict.type << endl;
-  cout.flush();
-    
-    float error = controlCenter - COLSIMAGE / 2; // 图像控制中心转换偏差
+
+    cout << "进入poseCtrl函数，当前场景: " << getScene(scene) << ",predict.type = " << predict.type << endl;
+    cout.flush();
+
+    error = controlCenter - COLSIMAGE / 2; // 图像控制中心转换偏差
     static int errorLast = 0;
-  
 
-  if(scene == Scene::ObstacleScene&&predict.type == LABEL_BLOCK)
+    if (scene == Scene::ObstacleScene && predict.type == LABEL_BLOCK)
+    {
+      cout << "检测到黑块" << endl;
+      cout << "obs_error1:" << error << endl;
+
+      if (abs(error - errorLast) > COLSIMAGE / 10)
       {
-        cout <<"检测到黑块" << endl;
-        cout << "obs_error1:" << error << endl;
+        error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                  : errorLast - COLSIMAGE / 10;
+      }
+      cout << "obs_error2:" << error << endl;
 
-        if (abs(error - errorLast) > COLSIMAGE / 10)
+      if (error > 0)
+      { // 右转时
+        params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+      }
+      else
+      { // 左转时
+        params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+      }
+      int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+      float pwmDiff1 = 0.9 * pwmDiff;
+      errorLast = error;
+      cout << "pwmDiff1" << pwmDiff1 << endl;
+
+      if (error > 0 && error <= 60)
+        servoPwm = (uint16_t)(1740 - pwmDiff1);
+      else if (error > 60)
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 150); // PWM转换
+      else if (error < 0 && error > -50)                     //
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
+      else if (error <= -50) // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 370);
+      else
+        servoPwm = PWMSERVOMID;
+    }
+
+    else if (scene == Scene::ObstacleScene && predict.type == LABEL_CONE)
     {
-      error = error > errorLast ? errorLast + COLSIMAGE / 10
-                                : errorLast - COLSIMAGE / 10;
-    }
-    cout << "obs_error2:" << error << endl;
 
-    if (error > 0)
-    { // 右转时
-      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
-    }
-    else
-    { // 左转时
-      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
-    }
-    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
-    float pwmDiff1= 0.9*pwmDiff;
-    errorLast = error;
-    cout << "pwmDiff1" << pwmDiff1 << endl;
+      cout << "检测到锥桶" << endl;
+      cout << "obs_error1:" << error << endl;
 
-    if (error>0&&error<67)
-      servoPwm = (uint16_t)(1740 - pwmDiff1); 
-    else if(error>=67)
-    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 145);// PWM转换
-    else if(error<0&&error>-87)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
-    else if(error<=-87)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 365);
+      if (abs(error - errorLast) > COLSIMAGE / 10)
+      {
+        error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                  : errorLast - COLSIMAGE / 10;
+      }
+      cout << "obs_error2:" << error << endl;
+
+      if (error > 0)
+      { // 右转时
+        params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+      }
+      else
+      { // 左转时
+        params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+      }
+      int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+      float pwmDiff1 = 0.9 * pwmDiff;
+      errorLast = error;
+      cout << "pwmDiff1" << pwmDiff1 << endl;
+
+      if (error > 0 && error < 20)
+        servoPwm = (uint16_t)(1740 - pwmDiff1);
+      else if (error >= 20)
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 150); // PWM转换
+      else if (error < 0 && error > -20)                     // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
+      else if (error <= -20) // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 370);
+      else
+        servoPwm = PWMSERVOMID;
+    }
+
+    else if (scene == Scene::ObstacleScene && predict.type == LABEL_PEDESTRIAN)
+    {
+
+      cout << "检测到行人" << endl;
+      cout << "obs_error1:" << error << endl;
+
+      if (abs(error - errorLast) > COLSIMAGE / 10)
+      {
+        error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                  : errorLast - COLSIMAGE / 10;
+      }
+      cout << "obs_error2:" << error << endl;
+
+      if (error > 0)
+      { // 右转时
+        params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+      }
+      else
+      { // 左转时
+        params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+      }
+      int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+      float pwmDiff1 = 0.9 * pwmDiff;
+      errorLast = error;
+      cout << "pwmDiff1" << pwmDiff1 << endl;
+
+      if (error > 0 && error < 65)
+        servoPwm = (uint16_t)(1740 - pwmDiff1);
+      else if (error >= 65)
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 150); // PWM转换
+      else if (error < 0 && error > -68)                     // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
+      else if (error <= -68) // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 370);
+      else
+        servoPwm = PWMSERVOMID;
+    }
+
+
+
+    else if (scene == Scene::LaybyScene)
+    {
+
+      if (abs(error - errorLast) > COLSIMAGE / 10)
+      {
+        error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                  : errorLast - COLSIMAGE / 10;
+      }
+      cout << "obs_error:" << error << endl;
+
+      if (error > 0)
+      { // 右转时
+        params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+      }
+      else
+      { // 左转时
+        params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+      }
+      int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+      errorLast = error;
+      if (error > 0 && error <= 30)
+        servoPwm = (uint16_t)(1740 - 1.15*pwmDiff);
+      else if (error > 30 && error <= 50)
+        servoPwm = (uint16_t)(1740 -  pwmDiff-150);
+      else if (error < 0 && error > -30) // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID -0.9* pwmDiff);
+      else if (error >= -50 && error <= -30)
+        servoPwm = (uint16_t)(PWMSERVOMID - 0.9*pwmDiff+370);
+      else if(error < -50||error>50)
+        servoPwm = PWMSERVOMID;
+    }
+
+
     else
-      servoPwm = PWMSERVOMID;
-  
+    {
+
+      cout << "controlCenter" << controlCenter << endl;
+      cout << "error1:" << error << endl;
+      if (abs(error - errorLast) > COLSIMAGE / 10)
+      {
+        error = error > errorLast ? errorLast + COLSIMAGE / 10
+                                  : errorLast - COLSIMAGE / 10;
+      }
+      cout << "error2:" << error << endl;
+
+      if (error > 0)
+      { // 右转时
+        params.turnP = abs(error) * params.runP2Right + params.runP1Right;
+      }
+      else
+      { // 左转时
+        params.turnP = abs(error) * params.runP2Left + params.runP1Left;
+      }
+      int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
+      errorLast = error;
+      cout << "pwmDiff" << pwmDiff << endl;
+
+      if (error > 0 && error <= 42)
+        servoPwm = (uint16_t)(1740 - pwmDiff);
+      else if (error > 42)
+      {
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150); // PWM转换
       }
 
-
-else if(scene == Scene::ObstacleScene&&predict.type == LABEL_CONE)
-{
-   
-        cout <<"检测到锥桶" << endl;
-        cout << "obs_error1:" << error << endl;
-
-        if (abs(error - errorLast) > COLSIMAGE / 10)
-    {
-      error = error > errorLast ? errorLast + COLSIMAGE / 10
-                                : errorLast - COLSIMAGE / 10;
-    }
-    cout << "obs_error2:" << error << endl;
-
-    if (error > 0)
-    { // 右转时
-      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
-    }
-    else
-    { // 左转时
-      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
-    }
-    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
-    float pwmDiff1= 0.9*pwmDiff;
-    errorLast = error;
-    cout << "pwmDiff1" << pwmDiff1 << endl;
-
-    if (error>0&&error<14)
-      servoPwm = (uint16_t)(1740 - pwmDiff1); 
-    else if(error>=14)
-    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 145);// PWM转换
-    else if(error<0&&error>-48)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
-    else if(error<=-48)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 365);
-    else
-      servoPwm = PWMSERVOMID;
-  
-      
-
-}
-
-else if(scene == Scene::ObstacleScene&&predict.type == LABEL_PEDESTRIAN)
-{
-   
-        cout <<"检测到行人" << endl;
-        cout << "obs_error1:" << error << endl;
-
-        if (abs(error - errorLast) > COLSIMAGE / 10)
-    {
-      error = error > errorLast ? errorLast + COLSIMAGE / 10
-                                : errorLast - COLSIMAGE / 10;
-    }
-    cout << "obs_error2:" << error << endl;
-
-    if (error > 0)
-    { // 右转时
-      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
-    }
-    else
-    { // 左转时
-      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
-    }
-    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
-    float pwmDiff1= 0.9*pwmDiff;
-    errorLast = error;
-    cout << "pwmDiff1" << pwmDiff1 << endl;
-
-    if (error>0&&error<102)
-      servoPwm = (uint16_t)(1740 - pwmDiff1); 
-    else if(error>=102)
-    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 - 145);// PWM转换
-    else if(error<0&&error>-70)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1);
-    else if(error<=-70)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff1 + 365);
-    else
-      servoPwm = PWMSERVOMID;
-  
-      
-
-}
-
-
-else{
-
-    cout << "controlCenter" << controlCenter << endl;
-    cout << "error1:" << error << endl;
-    if (abs(error - errorLast) > COLSIMAGE / 10)
-    {
-      error = error > errorLast ? errorLast + COLSIMAGE / 10
-                                : errorLast - COLSIMAGE / 10;
-    }
-    cout << "error2:" << error << endl;
-
+      else if (error < 0 && error > -25) // error<-12
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
+      else if (error >= -68 && error <= -25)
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff+370);
+      else if (error < -68) // error<-12
+      {
+        servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
+      }
+      else
+        servoPwm = PWMSERVOMID;
+      if (servoPwm > 2045 || controlCenter < 83)
+        servoPwm = 2045;
+      if (servoPwm > 2045 || controlCenter < 73)
+          servoPwm = 1810;
+      if (servoPwm < 1280 || controlCenter > 230)
+        servoPwm = 1280;
+      if (servoPwm < 1280 || controlCenter > 247)
+       servoPwm = 1490;
 
     
-    if (error > 0)
-    { // 右转时
-      params.turnP = abs(error) * params.runP2Right + params.runP1Right;
-    }
-    else
-    { // 左转时
-      params.turnP = abs(error) * params.runP2Left + params.runP1Left;
-    }
-    int pwmDiff = (error * params.turnP) + (error - errorLast) * params.turnD;
-    errorLast = error;
-    cout << "pwmDiff" << pwmDiff << endl;
 
-    if (error>0&&error<42)
-      servoPwm = (uint16_t)(1740 - pwmDiff); 
-    else if(error>42)
-    servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff - 150);// PWM转换
-    else if(error<0&&error>-42)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff);
-    else if(error<-42)  //error<-12
-      servoPwm = (uint16_t)(PWMSERVOMID - pwmDiff + 370);
-    else
-      servoPwm = PWMSERVOMID;
-
-    if (servoPwm > 2045 || controlCenter<110)
-      servoPwm = 2045;
-    if (servoPwm > 2045 || controlCenter<100)
-      servoPwm = 1810;
-    if (servoPwm < 1280 || controlCenter>211)
-      servoPwm = 1280;
-    if (servoPwm < 1280 || controlCenter>219)
-      servoPwm = 1490;
+      
+    }
   }
-      }
-    
-      
-    
-  
-  
 
   /**
    * @brief 变加速控制
@@ -326,56 +356,57 @@ else{
    * @param control
    */
   void speedCtrl(bool enable, bool slowDown, ControlCenter control)
-{
+  {
     // 控制率 - 增大上限和调整中间阈值
-    uint8_t controlLow = 0;     // 速度控制下限
-    uint8_t controlMid = 3;     // 降低阈值，更快切换到高速
-    uint8_t controlHigh = 15;   // 提高上限，允许更大调整范围
-    
+    uint8_t controlLow = 0;   // 速度控制下限
+    uint8_t controlMid = 3;   // 降低阈值，更快切换到高速
+    uint8_t controlHigh = 15; // 提高上限，允许更大调整范围
+
     // 加速步长 - 增大每次调整的幅度
-    uint8_t accelStep = 2;      // 原为1，现在每次调整+2/-2
-    
+    uint8_t accelStep = 2; // 原为1，现在每次调整+2/-2
+
     if (slowDown)
     {
-        countShift = controlLow;
-        speed = params.speedDown;
+      countShift = controlLow;
+      speed = params.speedDown;
     }
     else if (enable) // 加速使能
     {
-        if (control.centerEdge.size() < 10)
-        {
-            speed = params.speedLow;
-            countShift = controlLow;
-            return;
-        }
-        if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE / 2)
-        {
-            speed = params.speedLow;
-            countShift = controlLow;
-            return;
-        }
-        
-        if (abs(control.sigmaCenter) < 100.0)
-        {
-            countShift += accelStep;  // 加速时增加步长
-            if (countShift > controlHigh)
-                countShift = controlHigh;
-        }
-        else
-        {
-            countShift -= accelStep;  // 减速时同样增加步长
-            if (countShift < controlLow)
-                countShift = controlLow;
-        }
+      if (control.centerEdge.size() < 10)
+      {
+        speed = params.speedLow;
+        countShift = controlLow;
+        return;
+      }
+      if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE / 2)
+      {
+        speed = params.speedLow;
+        countShift = controlLow;
+        return;
+      }
 
-        if (countShift > controlMid)
-            speed = params.speedHigh;
-        else
-            speed = params.speedLow;
+      if (abs(control.sigmaCenter) < 100.0)
+      {
+        countShift += accelStep; // 加速时增加步长
+        if (countShift > controlHigh)
+          countShift = controlHigh;
+      }
+      else
+      {
+        countShift -= accelStep; // 减速时同样增加步长
+        if (countShift < controlLow)
+          countShift = controlLow;
+      }
+
+      if (countShift > controlMid)
+        speed = params.speedHigh;
+      else
+        speed = params.speedLow;
     }
     else
     {
-        countShift = controlLow;
-        speed = params.speedLow;
+      countShift = controlLow;
+      speed = params.speedLow;
     }
-}};
+  }
+};

@@ -509,6 +509,8 @@ opencv2/opencv.hpp
 /root/workspace/sasu_icar2025__demo/src/include/detection.hpp
 ../recognition/tracking.cpp
 /root/workspace/sasu_icar2025__demo/src/src/recognition/tracking.cpp
+../motion.cpp
+/root/workspace/sasu_icar2025__demo/src/src/motion.cpp
 
 /root/workspace/sasu_icar2025__demo/src/src/detection/obstacle.cpp
 fstream

@@ -14,13 +14,13 @@ int main()
         return -1;
     }
     uart->startReceive(); // 启动数据接收子线程
-    float speed;
+    int servo;
     while (1)
     {
-        cout << "输入：";
-        cin >> speed;
-        uart->carControl(0, speed);
-        cout << "speed：" << speed << endl;
+        cout << "servo输入：";
+        cin >> servo;
+        uart->carControl(0, servo);
+        cout << "servo:" << servo << endl;
     }
     uart->close();
     cout << "结束" << endl;

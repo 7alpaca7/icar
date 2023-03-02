@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/root/workspace/sasu_icar2025__demo/test/build",
+  "command": "/usr/bin/c++   -I/root/workspace/sasu_icar2025__demo/test/src/include -I/root/workspace/sasu_icar2025__demo/test/src/config -I/root/workspace/sasu_icar2025__demo/test/src/src -I/usr/include/glib-2.0 -I/usr/lib/aarch64-linux-gnu/glib-2.0/include -isystem /usr/local/include -isystem /usr/local/include/opencv -I/usr/local/include/libserial -I/usr/local/include/ppnc -I/usr/local/include/onnx  -O3 -Wall -mcpu=native -flto -pthread   -std=gnu++1z -o CMakeFiles/main.dir/src/test.cpp.o -c /root/workspace/sasu_icar2025__demo/test/src/src/test.cpp",
+  "file": "/root/workspace/sasu_icar2025__demo/test/src/src/test.cpp"
+}
+]
