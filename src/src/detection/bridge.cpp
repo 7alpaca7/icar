@@ -42,11 +42,15 @@ public:
         {
             if (track.pointsEdgeLeft.size() > ROWSIMAGE / 2 && track.pointsEdgeRight.size() > ROWSIMAGE / 2) // 切行，防止错误前瞻引发转向
             {
+                reverse(track.pointsEdgeLeft.begin(), track.pointsEdgeLeft.end());
+                reverse(track.pointsEdgeRight.begin(), track.pointsEdgeRight.end());
                 track.pointsEdgeLeft.resize(track.pointsEdgeLeft.size() / 2);
                 track.pointsEdgeRight.resize(track.pointsEdgeRight.size() / 2);
+                reverse(track.pointsEdgeLeft.begin(), track.pointsEdgeLeft.end());
+                reverse(track.pointsEdgeRight.begin(), track.pointsEdgeRight.end());
             }
             counterSession++;
-            if (counterSession > 20) // 上桥30场图像后失效
+            if (counterSession > 30) // 上桥30场图像后失效
             {
                 counterRec = 0;
                 counterSession = 0;

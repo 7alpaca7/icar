@@ -96,9 +96,9 @@ int main(int argc, char const *argv[])
 
   if (motion.params.debug)
   {
-    cout << "qidong" << endl;
+    // cout << "qidong" << endl;
     display.init(4); // 调试UI初始化
-    cout << "chushihua" << endl;
+    // cout << "chushihua" << endl;
     display.frameMax = capture.get(CAP_PROP_FRAME_COUNT) - 1;
     // createTrackbar("Frame", "ICAR", &display.index, display.frameMax, [](int, void *) {}); // 创建Opencv图像滑条控件
     // setMouseCallback("ICAR", mouseCallback);
@@ -106,19 +106,20 @@ int main(int argc, char const *argv[])
   // 等待按键发车
   if (!motion.params.debug)
   {
-    printf("--------------[等待按键发车!]-------------------\n");
+    // printf("--------------[等待按键发车!]-------------------\n");
     uart->buzzerSound(uart->BUZZER_START); // 提示音
     // cout << "llai" << endl;
     // while (!uart->keypress)
     //   waitKey(200);
-    do{
-      cout<<"是否开启图像:";
-      cin>>flag;
-      uart->keypress=true;
-      if(!uart->keypress)
-      cout<<"发车失败"<<endl;
-    }while(!uart->keypress);
-    cout << "fa" << endl;
+    do
+    {
+      cout << "是否开启图像:";
+      cin >> flag;
+      uart->keypress = true;
+      if (!uart->keypress)
+        cout << "发车失败" << endl;
+    } while (!uart->keypress);
+    // cout << "fa" << endl;
     uart->carControl(0, PWMSERVOMID);
     while (ret < 10) // 延时3s
     {
@@ -127,11 +128,11 @@ int main(int argc, char const *argv[])
       waitKey(150);
       ret++;
     }
-    cout << "an" << endl;
+    // cout << "an" << endl;
     uart->keypress = false;
     uart->buzzerSound(uart->BUZZER_START); // 祖传提示音效
   }
-  cout << "go" << endl;
+  // cout << "go" << endl;
   // 初始化参数
   Scene scene = Scene::NormalScene;     // 初始化场景：常规道路
   Scene sceneLast = Scene::NormalScene; // 记录上一次场景状态
@@ -145,7 +146,7 @@ int main(int argc, char const *argv[])
     //[01] 视频源读取
     if (motion.params.debug) // 综合显示调试UI窗口
     {
-      cout << "jin" << endl;
+      // cout << "jin" << endl;
       if (display.indexLast == display.index) // 图像帧未更新
       {
         display.show(); // 显示综合绘图
@@ -190,29 +191,28 @@ int main(int argc, char const *argv[])
       tracking.drawImage(imgTrack); // 图像绘制赛道识别结果
       display.setNewWindow(2, "Track", imgTrack);
     }
-    
+
     //[05] 停车区检测
     if (motion.params.stop)
     {
       if (stopArea.process(detection->results))
       {
-        if(!banMaFlag)
+        if (!banMaFlag)
         {
           banMaFlag = true;
         }
-        else{
-          scene = Scene::StopScene;
-        int count = 0;
-        if (stopArea.countExit > 20)
+        else
         {
-          while(count<=500)
-          count++;
-          uart->carControl(0, PWMSERVOMID); // 控制车辆停止运动
-          sleep(1);
-          // waitKey(1);
-          printf("-----> [parking] System Exit!!! <-----\n");
-          exit(0); // 程序退出
-        }
+          scene = Scene::StopScene;
+          int count = 0;
+          if (stopArea.countExit > 50)
+          {
+            uart->carControl(0, PWMSERVOMID); // 控制车辆停止运动
+            sleep(1);
+            // waitKey(1);
+            printf("-----> [parking] System Exit!!! <-----\n");
+            exit(0); // 程序退出
+          }
         }
       }
     }
@@ -231,7 +231,7 @@ int main(int argc, char const *argv[])
     if ((scene == Scene::NormalScene || scene == Scene::LaybyScene) &&
         motion.params.layby)
     {
-      if (layby.process(tracking, imgBinary, detection->results,motion)) // 传入二值化图像进行再处理
+      if (layby.process(tracking, imgBinary, detection->results, motion)) // 传入二值化图像进行再处理
         scene = Scene::LaybyScene;
       else
         scene = Scene::NormalScene;
@@ -282,7 +282,7 @@ int main(int argc, char const *argv[])
 
     //[12] 环岛识别与路径规划
     if ((scene == Scene::NormalScene || scene == Scene::RingScene) &&
-        motion.params.ring && catering.noRing)
+        motion.params.ring)
     {
       if (ring.process(tracking))
         scene = Scene::RingScene;
@@ -343,9 +343,48 @@ int main(int argc, char const *argv[])
       /*********************************************************************************/
       if (flag)
       {
-        layby.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
-        //circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
-        //putText(imgCorrect, "T", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+        switch (scene)
+        {
+        case Scene::NormalScene:
+          break;
+        case Scene::CrossScene: // [ 十字区 ]
+          // crossroad.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "+", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        case Scene::RingScene: // [ 环岛 ]
+          // ring.drawImage(tracking, imgRes); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "H", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        case Scene::CateringScene:              // [ 餐饮区 ]
+          catering.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "C", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        case Scene::LaybyScene:              // [ 临时停车区 ]
+          layby.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "T", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        case Scene::ParkingScene:              // [ 充电停车场 ]
+          parking.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "P", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        case Scene::BridgeScene:              // [ 坡道区 ]
+          bridge.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "S", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        case Scene::ObstacleScene:    //[ 障碍区 ]
+          obstacle.drawImage(imgCorrect); // 图像绘制特殊赛道识别结果
+          circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
+          putText(imgCorrect, "X", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
+          break;
+        default: // 常规道路场景：无特殊路径规划
+          break;
+        }
         imshow("show", imgCorrect);
         waitKey(1);
       }
@@ -417,7 +456,7 @@ int main(int argc, char const *argv[])
       display.setNewWindow(4, "Ctrl", imgCorrect);
       display.show(); // 显示综合绘图
       waitKey(1);
-      cout << "1" << endl;
+      // cout << "1" << endl;
     }
     //[16] 状态复位
     if (sceneLast != scene)

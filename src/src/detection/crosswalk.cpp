@@ -79,7 +79,7 @@ public:
                     }
                 }
             }
-            if (countSes > 50)
+            if (countSes > 100)
             {
                 countSes = 0;
                 step = Step::det;
