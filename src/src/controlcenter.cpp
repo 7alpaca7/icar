@@ -53,12 +53,12 @@ public:
     sigmaCenter = 0;
     controlCenter = COLSIMAGE / 2;
     centerEdge.clear();
-    vector<POINT> v_center(4); // 三阶贝塞尔曲线
+    vector<POINT> v_center(4); // 三阶贝塞尔曲线，存储4个点的坐标
     style = "STRIGHT";
 
-    // 边缘斜率重计算（边缘修正之后）
-    track.stdevLeft = track.stdevEdgeCal(track.pointsEdgeLeft, ROWSIMAGE);
-    track.stdevRight = track.stdevEdgeCal(track.pointsEdgeRight, ROWSIMAGE);
+    // 边缘斜率重计算（边缘修正之后），计算左边线和右边线的斜率
+    track.stdevLeft = track.stdevEdgeCal(track.pointsEdgeLeft, ROWSIMAGE);//左边线的斜率
+    track.stdevRight = track.stdevEdgeCal(track.pointsEdgeRight, ROWSIMAGE);//右边线的斜率
 
     // 边缘有效行优化
     // if ((track.stdevLeft < 80 && track.stdevRight > 50) ||
@@ -69,8 +69,11 @@ public:
     //   track.pointsEdgeRight.resize(validRowsRight);
     // }
 
-    if (track.pointsEdgeLeft.size() > 10 &&
-        track.pointsEdgeRight.size() > 10) // 通过双边缘有效点的差来判断赛道类型
+    /*
+     通过双边缘有效点的差来判断赛道类型。
+    */
+    if (track.pointsEdgeLeft.size() > 10 && 
+        track.pointsEdgeRight.size() > 10) //两边边线都存在直行，并通过贝塞尔求中心线。v_center[]中0~3放入贝塞尔曲线4个所需点的值
     {
       v_center[0] = {
           (track.pointsEdgeLeft[0].x + track.pointsEdgeRight[0].x) / 2,
@@ -100,11 +103,11 @@ public:
            track.pointsEdgeRight[track.pointsEdgeRight.size() * 0.9].y) /
               2};
 
-      centerEdge = Bezier(0.03, v_center);
+      centerEdge = Bezier(0.03, v_center);//中心线
 
-      style = "STRIGHT";
+      style = "STRIGHT";//直行
     }
-    // 左单边
+    // 左单边，右转
     else if ((track.pointsEdgeLeft.size() > 0 &&
               track.pointsEdgeRight.size() <= 10) ||
              (track.pointsEdgeLeft.size() > 0 &&
@@ -115,7 +118,7 @@ public:
       style = "RIGHT";
       centerEdge = centerCompute(track.pointsEdgeLeft, 0);
     }
-    // 右单边
+    // 右单边，左转
     else if ((track.pointsEdgeRight.size() > 0 &&
               track.pointsEdgeLeft.size() <= 10) ||
              (track.pointsEdgeRight.size() > 0 &&
@@ -127,8 +130,13 @@ public:
       centerEdge = centerCompute(track.pointsEdgeRight, 1);
     }
     else if (track.pointsEdgeLeft.size() > 10 &&
-             track.pointsEdgeRight.size() == 0) // 左单边
+             track.pointsEdgeRight.size() == 0) // 左单边，右线完全消失是右转，用贝塞尔求中线
     {
+      /*| *  ·  |
+        | *  ·  |
+        | *  ·  |
+        其中|  |为图像的边界，*为左线，·为中心点。//在算贝塞尔曲线是使用左线的点和左线到右边界的点
+      */
       v_center[0] = {track.pointsEdgeLeft[0].x,
                      (track.pointsEdgeLeft[0].y + COLSIMAGE - 1) / 2};
 
@@ -153,7 +161,7 @@ public:
       style = "RIGHT";
     }
     else if (track.pointsEdgeLeft.size() == 0 &&
-             track.pointsEdgeRight.size() > 10) // 右单边
+             track.pointsEdgeRight.size() > 10) // 右单边，同左单边
     {
       v_center[0] = {track.pointsEdgeRight[0].x,
                      track.pointsEdgeRight[0].y / 2};
@@ -175,7 +183,7 @@ public:
       style = "LEFT";
     }
 
-    // 加权控制中心计算
+    // 加权控制中心计算??????????????????????????????????????????????????????????????????????????/
     int controlNum = 1;
     for (auto p : centerEdge)
     {
@@ -195,22 +203,22 @@ public:
       controlCenter = controlCenter / controlNum;
     }
 
-    if (controlCenter > COLSIMAGE)
+    if (controlCenter > COLSIMAGE)//超出右左边界就将其设置为右左边界
       controlCenter = COLSIMAGE;
     else if (controlCenter < 0)
       controlCenter = 0;
 
-    // 控制率计算
+    // 控制率计算   ???计算中心点集的方差???
     if (centerEdge.size() > 20)
     {
-      vector<POINT> centerV;
+      vector<POINT> centerV;//中心点坐标集
       int filt = centerEdge.size() / 5;
       for (size_t i = filt; i < centerEdge.size() - filt;
            i++) // 过滤中心点集前后1/5的诱导性
       {
         centerV.push_back(centerEdge[i]);
       }
-      sigmaCenter = sigma(centerV);
+      sigmaCenter = sigma(centerV);//中心点集的方差
     }
     else
       sigmaCenter = 1000;
@@ -226,7 +234,7 @@ public:
   bool derailmentCheck(Tracking track)
   {
     if (track.pointsEdgeLeft.size() < 30 &&
-        track.pointsEdgeRight.size() < 30) // 防止车辆冲出赛道
+        track.pointsEdgeRight.size() < 30) // 防止车辆冲出赛道,小于20帧为冲出赛道，回归后50帧重置计算
     {
       countOutlineA++;
       countOutlineB = 0;
@@ -252,7 +260,7 @@ public:
    */
   void drawImage(Tracking track, Mat &centerImage)
   {
-    // 赛道边缘绘制
+    // 赛道边缘绘制，绿左黄右中蓝
     for (size_t i = 0; i < track.pointsEdgeLeft.size(); i++)
     {
       circle(centerImage,
@@ -310,8 +318,10 @@ private:
   int countOutlineB = 0; // 车辆脱轨检测计数器
   string style = "";     // 赛道类型
   /**
-   * @brief 搜索十字赛道突变行（左下）
-   *
+   * @brief 搜索十字赛道突变行（左下），找到之左下角连续三个点的y值大于等于2，
+   *正常赛道：/*   *\   突变赛道：  /*   *\
+            /*     *\         /*           *\ 
+           /*       *\          /*       *\ 
    * @param pointsEdgeLeft
    * @return uint16_t
    */
@@ -337,7 +347,7 @@ private:
   }
 
   /**
-   * @brief 搜索十字赛道突变行（右下）
+   * @brief 搜索十字赛道突变行（右下）,找到之右下角连续三个点的y值小于等于317，
    *
    * @param pointsEdgeRight
    * @return uint16_t
@@ -364,7 +374,7 @@ private:
   }
 
   /**
-   * @brief 赛道中心点计算：单边控制
+   * @brief 赛道中心点计算：单边控制，同时只能用一边计算中点
    *
    * @param pointsEdge 赛道边缘点集
    * @param side 单边类型：左边0/右边1
@@ -372,16 +382,16 @@ private:
    */
   vector<POINT> centerCompute(vector<POINT> pointsEdge, int side)
   {
-    int step = 4;                    // 间隔尺度
-    int offsetWidth = COLSIMAGE / 2; // 首行偏移量
+    int step = 4;                    // 间隔尺度4
+    int offsetWidth = COLSIMAGE / 2; // 首行y偏移量
     int offsetHeight = 0;            // 纵向偏移量
 
     vector<POINT> center; // 控制中心集合
 
-    if (side == 0) // 左边缘
+    if (side == 0) // 左边缘，0为左
     {
       uint16_t counter = 0, rowStart = 0;
-      for (size_t i = 0; i < pointsEdge.size(); i++) // 删除底部无效行
+      for (size_t i = 0; i < pointsEdge.size(); i++) // 删除底部无效行，去除y<=1的行。（从第一个连续两行y值大于1的行开始）
       {
         if (pointsEdge[i].y > 1)
         {
@@ -396,12 +406,12 @@ private:
           counter = 0;
       }
 
-      offsetHeight = pointsEdge[rowStart].x - pointsEdge[0].x;
+      offsetHeight = pointsEdge[rowStart].x - pointsEdge[0].x;//起始行和第一行的行数差值
       counter = 0;
       for (size_t i = rowStart; i < pointsEdge.size(); i += step)
       {
-        int py = pointsEdge[i].y + offsetWidth;
-        if (py > COLSIMAGE - 1)
+        int py = pointsEdge[i].y + offsetWidth;//为y坐标加上偏移量
+        if (py > COLSIMAGE - 1)//y坐标连续3次超过右边屏幕就退出
         {
           counter++;
           if (counter > 2)
@@ -410,11 +420,11 @@ private:
         else
         {
           counter = 0;
-          center.emplace_back(pointsEdge[i].x - offsetHeight, py);
+          center.emplace_back(pointsEdge[i].x - offsetHeight, py);//将调整后的中心点记录下来
         }
       }
     }
-    else if (side == 1) // 右边沿
+    else if (side == 1) // 右边沿，同左边沿
     {
       uint16_t counter = 0, rowStart = 0;
       for (size_t i = 0; i < pointsEdge.size(); i++) // 删除底部无效行
@@ -432,7 +442,7 @@ private:
           counter = 0;
       }
 
-      offsetHeight = pointsEdge[rowStart].x - pointsEdge[0].x;
+      offsetHeight = pointsEdge[rowStart].x - pointsEdge[0].x;//起始行和第一行的行数差值
       counter = 0;
       for (size_t i = rowStart; i < pointsEdge.size(); i += step)
       {
@@ -451,7 +461,7 @@ private:
       }
     }
 
-    return center;
+    return center;//返回中点坐标
     // return Bezier(0.2,center);
   }
 };

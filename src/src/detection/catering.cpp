@@ -79,9 +79,11 @@ public:
                     
                     // 限定斜率
                     if ((slope > -0.3 || slope < -1) && burgerLeft) {
+                       // cout>>"斜率不符合desu:斜率为:">>slope>>endl;
                         continue; // 跳过不符合斜率条件的直线
                     }
                     else if ((slope < 0.3 || slope > 1) && !burgerLeft ) {
+                        //cout>>"斜率不符合desu:斜率为:">>slope>>endl;
                         continue; // 跳过不符合斜率条件的直线
                     }
                     
