@@ -357,27 +357,27 @@ int main(int argc, char const *argv[])
           circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
           putText(imgCorrect, "H", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
           break;
-        case Scene::CateringScene:              // [ 餐饮区 ]
+        case Scene::CateringScene:                  // [ 餐饮区 ]
           catering.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
           circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
           putText(imgCorrect, "C", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
           break;
-        case Scene::LaybyScene:              // [ 临时停车区 ]
+        case Scene::LaybyScene:                  // [ 临时停车区 ]
           layby.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
           circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
           putText(imgCorrect, "T", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
           break;
-        case Scene::ParkingScene:              // [ 充电停车场 ]
+        case Scene::ParkingScene:                  // [ 充电停车场 ]
           parking.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
           circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
           putText(imgCorrect, "P", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
           break;
-        case Scene::BridgeScene:              // [ 坡道区 ]
+        case Scene::BridgeScene:                  // [ 坡道区 ]
           bridge.drawImage(tracking, imgCorrect); // 图像绘制特殊赛道识别结果
           circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
           putText(imgCorrect, "S", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
           break;
-        case Scene::ObstacleScene:    //[ 障碍区 ]
+        case Scene::ObstacleScene:        //[ 障碍区 ]
           obstacle.drawImage(imgCorrect); // 图像绘制特殊赛道识别结果
           circle(imgCorrect, Point(COLSIMAGE / 2, ROWSIMAGE / 2), 40, Scalar(40, 120, 250), -1);
           putText(imgCorrect, "X", Point(COLSIMAGE / 2 - 25, ROWSIMAGE / 2 + 27), FONT_HERSHEY_PLAIN, 5, Scalar(255, 255, 255), 3);
@@ -498,7 +498,7 @@ int main(int argc, char const *argv[])
 }
 
 /**
- * @brief 鼠标的事件回调函数
+ * @brief 鼠标的事件回调函数6666666666666666666666666666666666
  *
  */
 void mouseCallback(int event, int x, int y, int flags, void *userdata)
@@ -525,4 +525,3 @@ void mouseCallback(int event, int x, int y, int flags, void *userdata)
     break;
   }
 }
- 
