@@ -330,7 +330,10 @@ public:
                         POINT pt;
                         pt.x = y; 
                         pt.y = x; 
+                        if (TurnRight)
                         track.pointsEdgeLeft.push_back(pt); // 将 POINT 存入点集
+                        else
+                        track.pointsEdgeRight.push_back(pt);
                     }
 
                     pathsEdgeLeft.push_back(track.pointsEdgeLeft); // 记录进场轨迹，使用新的点集提供精准转向控制
