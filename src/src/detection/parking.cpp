@@ -107,11 +107,11 @@ public:
                 {
                     if (predict[i].type == LABEL_CAR && predict[i].score > 0.6)
                     {
-                        carY = (predict[i].y + predict[i].height)/2;   // 计算标识的中心
+                        carY = predict[i].y + predict[i].height/2;   // 计算标识的中心
                     }
                     else if ((predict[i].type == LABEL_BATTERY) && predict[i].score > 0.6)
                     {
-                        batteryY = predict[i].y ;   // 计算标识牌最高高度
+                        batteryY = predict[i].y + predict[i].width/2;   // 计算标识牌最高高度
                     }
                 }
                 // 图像预处理

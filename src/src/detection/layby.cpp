@@ -125,7 +125,7 @@ public:
             counterSession++;
             cout << "mergedLines.size()" << mergedLines.size() << endl;
 
-            if (counterSession > stopTime) // 结束临时停车状态
+            if (counterSession > all_time) // 结束临时停车状态
             {
                 cout << "状态退出" << endl;
                 counterRec = 0;
@@ -142,10 +142,10 @@ public:
             //     cout << "mergedLines[0][3]" << mergedLines[0][3] << endl;
 
             // }
-            else if (mergedLines.size() == 2) // 检测到两条直线
+            if (mergedLines.size() == 2) // 检测到两条直线
             {
                 searchingLine = true; // 搜索直线标志
-                count=1;
+                count = 1;
                 std::cout << "检测到两条线" << std::endl;
                 cout << "mergedLines[0][0]" << mergedLines[0][0] << endl; // 起点y
                 cout << "mergedLines[0][1]" << mergedLines[0][1] << endl; // 起点x
@@ -169,10 +169,10 @@ public:
             else if (mergedLines.size() == 0) // 检测到两条直线
             {
                 searchingLine = true; // 搜索直线标志
-                count=2;    
+                count = 2;
             }
 
-            else if (searchingLine&&mergedLines.size() == 1 && mergedLines[0][1] > 113 && mergedLines[0][1] < 160&&count>1)
+            else if (searchingLine && mergedLines.size() == 1 && mergedLines[0][1] > 113 && mergedLines[0][1] < 160 && count > 1)
             {
                 cout << "mergedLines[0][0]" << mergedLines[0][0] << endl; // 起点y
                 cout << "mergedLines[0][1]" << mergedLines[0][1] << endl; // 起点x
@@ -187,11 +187,24 @@ public:
                 // waitKey(750);
                 stopEnable = true; // 停车使能
                 searchingLine = false;
+                counterSession = 0;
             }
 
             return true;
         }
-
+        else if (stopEnable)
+        {
+            counterSession++;
+            if (counterSession > stopTime)
+            {
+                counterSession = 0;
+                counterRec = 0;
+                counterSession = 0;
+                laybyEnable = false;
+                searchingLine = false; // 搜索直线标志
+            }
+            return true;
+        }
         else // 检测标志
         {
             for (size_t i = 0; i < predict.size(); i++)
@@ -294,6 +307,7 @@ private:
     bool searchingLine = false;  // 搜索直线标志
     vector<Vec4i> mergedLines;   // 合并后的线段用于绘制
     int moment = 40;             // 停车时机，屏幕上方的像素值，值越大越越晚停车
-    int stopTime = 90;          // 停车时间 40帧
-    int count=0;
+    int stopTime = 10;           // 停车时间 40帧
+    int count = 0;
+    int all_time = 100;
 };

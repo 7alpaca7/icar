@@ -205,7 +205,7 @@ int main(int argc, char const *argv[])
         {
           scene = Scene::StopScene;
           int count = 0;
-          if (stopArea.countExit > 50)
+          if (stopArea.countExit > 70)
           {
             uart->carControl(0, PWMSERVOMID); // 控制车辆停止运动
             sleep(1);
