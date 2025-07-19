@@ -11,6 +11,10 @@
  *            The code ADAPTS the corresponding hardware circuit board(代码适配百度Edgeboard-智能汽车赛事版),
  *            The specific details consult the professional(欢迎联系我们,代码持续更正，敬请关注相关开源渠道).
  *********************************************************************************************************
+ MEIFOX:
+ 1.转弯时机
+ 2.
+
  * @file parking.cpp
  * @author HC (sasu@saishukeji.com)
  * @brief 充电停车场
@@ -102,16 +106,17 @@ public:
             {
                 int carY = ROWSIMAGE;         //车库里车的中心高度
                 int batteryY = ROWSIMAGE;     // 充电站标识高度
-                
+                int batteryX = COLSIMAGE;    // 充电站标识中心x值
                 for (size_t i = 0; i < predict.size(); i++)
                 {
                     if (predict[i].type == LABEL_CAR && predict[i].score > 0.6)
                     {
-                        carY = predict[i].y + predict[i].height/2;   // 计算标识的中心
+                        carY = predict[i].y + predict[i].height/2;   // 计算小车中心
                     }
                     else if ((predict[i].type == LABEL_BATTERY) && predict[i].score > 0.6)
                     {
-                        batteryY = predict[i].y + predict[i].width/2;   // 计算标识牌最高高度
+                        batteryY = predict[i].y ;   // 计算充电站标识最高高度
+                        batteryX = predict[i].x+predict[i].width/2;    // 计算充电站标识中心x值
                     }
                 }
                 // 图像预处理
@@ -132,25 +137,31 @@ public:
                     double angle = atan2(pt2.y - pt1.y, pt2.x - pt1.x) * 180.0 / CV_PI;//角度
                     int midX = (line[0] + line[2]) / 2;//起点和终点x值的平均数
                     int midY = (line[1] + line[3]) / 2;//起点和终点y值的平均数
-
+                    if(batteryX > COLSIMAGE/2)
+                    {
+                        TurnRight = true;
+                    }
+                    else 
+                    {
+                        TurnRight = false;
+                    }
                     // 筛选直线，直线只出现在右侧并且在充电标识牌的上方<20.74°>
-                    if(abs(angle) < 30 && angle < 0 && midY < batteryY && midY < 200 &&  midX > COLSIMAGE/2) //右侧
+                    if(TurnRight && abs(angle) < 30 && angle < 0 && midY < batteryY && midY < 200 &&  midX > COLSIMAGE/2) //右侧
                     { // 接近水平
-                        /*1.角度绝对值小于30。<-20.74°>
+                        /*
+                        1.角度绝对值小于30。<-20.74°>
                         2.角度小于0
                         3.线段中点在标识最高之上
-                        4.线段中点在200之上
+                        4.线段中点在200之下
                         5.线段中点在x中点右边
                         */
                         //绘制出图像
-                        TurnRight = true;
                         horizontalLines.push_back(line);
                         cv::line(imgRes, Point(line[0], line[1]), Point(line[2], line[3]), Scalar(0, 0, 255), 2);
 
                     }
-                    else if(abs(angle) < 30 && angle > 0 && midY < batteryY && midY < 200 && midX < COLSIMAGE/2)
-                    {
-                        TurnRight = false;  
+                    else if(!TurnRight && abs(angle) < 30 && angle > 0 && midY < batteryY && midY < 200 && midX < COLSIMAGE/2)
+                    { 
                         horizontalLines.push_back(line);
                         cv::line(imgRes, Point(line[0], line[1]), Point(line[2], line[3]), Scalar(0, 0, 255), 2);
                     }
@@ -182,7 +193,7 @@ public:
                                 cout<<"下边的线y坐标:"<<max(midY1,midY2)<<endl;
                                 cout<<"上边的线y坐标"<<min(midY1,midY2)<<endl;
                                 cout<<"TurnRight:"<<TurnRight<<endl;
-                                
+
 
                                 if (carY > max(midY1, midY2))//如果最近的一条线的中点高于小车中点就认为是1号车库
                                 {
@@ -289,7 +300,7 @@ public:
                     if (!startTurning)
                     {
                         counterSession = 0;
-                        startTurning = true; // 已经开始转弯
+                        startTurning = true; //
                     }
                     std::cout << "控制转弯" << std::endl;
                     // 计算直线的斜率
@@ -300,25 +311,29 @@ public:
                     {
                     int y3 = slope * (0 - ptA.x) + ptA.y;        // 延长起点的Y坐标，延长到最左边
                     int y4 = slope * (COLSIMAGE - ptA.x) + ptA.y;// 延长终点的Y坐标，延长到最右边
-                     start=Point(0, y3);           // 延长起点，延长后的起点
-                     end=Point(COLSIMAGE, y4);     // 延长终点，延长后的终点
+                    start = Point(0, y3);           // 延长起点，延长后的起点
+                    end = Point(COLSIMAGE, y4);     // 延长终点，延长后的终点
                     }
                     else if(!TurnRight)
                     {
                     int y3 = slope * (COLSIMAGE - ptA.x) + ptA.y;    // 延长起点的Y坐标，延长到最左边
                     int y4 = slope * (0 - ptA.x) + ptA.y;            // 延长终点的Y坐标，延长到最右边
-                     start=Point(COLSIMAGE, y3);  // 延长起点，延长后的起点
-                    end=Point(0, y4);            // 延长终点，延长后的终点
+                    start = Point(COLSIMAGE, y3);  // 延长起点，延长后的起点
+                    end = Point(0, y4);            // 延长终点，延长后的终点
                     }
                  
                     track.pointsEdgeLeft.clear(); // 清空原始点集
 
-                    for (int x = start.x; x <= end.x; x++) {
+                    for (int x = start.x; x <= end.x; x++) 
+                    {
                         int y = static_cast<int>(start.y + slope * (x - start.x)); // 根据斜率计算 y 值
                         POINT pt;
                         pt.x = y; 
                         pt.y = x; 
+                        if (TurnRight)
                         track.pointsEdgeLeft.push_back(pt); // 将 POINT 存入点集
+                        else
+                        track.pointsEdgeRight.push_back(pt);
                     }
 
                     pathsEdgeLeft.push_back(track.pointsEdgeLeft); // 记录进场轨迹，使用新的点集提供精准转向控制
@@ -412,7 +427,7 @@ private:
     vector<vector<POINT>> pathsEdgeRight;
     Point ptA = Point(0, 0);      // 记录线段的两个端点
     Point ptB = Point(0, 0);
-    int truningTime = 21;             // 转弯时间 21帧
-    int stopTime = 40;                // 停车时间 40帧
+    int truningTime = 90;             // 转弯时间 21帧
+    int stopTime = 30;                // 停车时间 40帧
     float swerveTime = 0.2;           // 转向时机 0.2 （转弯线出现在屏幕上方0.2处）
 };
