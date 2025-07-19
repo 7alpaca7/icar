@@ -24,6 +24,7 @@
 #include "../include/common.hpp"
 #include "../include/json.hpp"
 #include "controlcenter.cpp"
+#include "recognition/tracking.cpp"
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -355,7 +356,57 @@ public:
    * @param enable 加速使能
    * @param control
    */
-  void speedCtrl(bool enable, bool slowDown, ControlCenter control)
+  // void speedCtrl(bool enable, bool slowDown, ControlCenter control)
+  // {
+  //   // 控制率
+  //   uint8_t controlLow = 0;   // 速度控制下限
+  //   uint8_t controlMid = 5;   // 控制率
+  //   uint8_t controlHigh = 10; // 速度控制上限
+
+  //   if (slowDown)
+  //   {
+  //     countShift = controlLow;
+  //     speed = params.speedDown;
+  //   }
+  //   else if (enable) // 加速使能
+  //   {
+  //     if (control.centerEdge.size() < 10)
+  //     {
+  //       speed = params.speedLow;
+  //       countShift = controlLow;
+  //       return;
+  //     }
+  //     if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE / 2)
+  //     {
+  //       speed = params.speedLow;
+  //       countShift = controlLow;
+  //       return;
+  //     }
+  //     if (abs(control.sigmaCenter) < 100.0)
+  //     {
+  //       countShift++;
+  //       if (countShift > controlHigh)
+  //         countShift = controlHigh;
+  //     }
+  //     else
+  //     {
+  //       countShift--;
+  //       if (countShift < controlLow)
+  //         countShift = controlLow;
+  //     }
+
+  //     if (countShift > controlMid)
+  //       speed = params.speedHigh;
+  //     else
+  //       speed = params.speedLow;
+  //   }
+  //   else
+  //   {
+  //     countShift = controlLow;
+  //     speed = params.speedLow;
+  //   }
+  // }
+   void speedCtrl(bool enable, bool slowDown, ControlCenter control)
   {
     // 控制率 - 增大上限和调整中间阈值
     uint8_t controlLow = 0;   // 速度控制下限
@@ -365,28 +416,35 @@ public:
     // 加速步长 - 增大每次调整的幅度
     uint8_t accelStep = 2; // 原为1，现在每次调整+2/-2
 
+    // 加速步长 - 增大每次调整的幅度
+    uint8_t accelStep = 2; // 原为1，现在每次调整+2/-2
+    float value = abs(control.sigmaCenter)/50.0f;
+    accelStep = static_cast<uint8_t>(value < 1 ? 1 : (value > 4 ? 4 : value));
     if (slowDown)
-    {
+    {//紧急减速模式
       countShift = controlLow;
       speed = params.speedDown;
     }
     else if (enable) // 加速使能
-    {
+    {//正常加速控制
       if (control.centerEdge.size() < 10)
       {
         speed = params.speedLow;
         countShift = controlLow;
         return;
       }
-      if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE / 2)
+
+      if (control.centerEdge[control.centerEdge.size() - 1].x > ROWSIMAGE/2)
       {
         speed = params.speedLow;
         countShift = controlLow;
         return;
       }
 
+
       if (abs(control.sigmaCenter) < 100.0)
       {
+        countShift += accelStep; // 加速时增加步长
         countShift += accelStep; // 加速时增加步长
         if (countShift > controlHigh)
           countShift = controlHigh;

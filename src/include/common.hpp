@@ -115,6 +115,7 @@ typedef struct POINT
     POINT(int x, int y, int direction) : x(x), y(y), direction(direction) {};
     bool operator<(const POINT &p) const
     {
+        //排序默认按x从小到大，x相同时按从大到小
         if (x == p.x)
             return y < p.y;
         return x < p.x;
@@ -164,7 +165,7 @@ double average(vector<int> vec)
  * @param vec Int集合
  * @return double
  */
-double sigma(vector<int> vec)
+double sigma(vector<int> vec)//方差
 {
     if (vec.size() < 1)
         return 0;
@@ -185,7 +186,7 @@ double sigma(vector<int> vec)
  * @param vec
  * @return double
  */
-double sigma(vector<POINT> vec)
+double sigma(vector<POINT> vec)//赛道点集方差
 {
     if (vec.size() < 1)
         return 0;
@@ -212,7 +213,7 @@ double sigma(vector<POINT> vec)
  * @param x
  * @return int
  */
-int factorial(int x)
+int factorial(int x)//阶乘
 {
     int f = 1;
     for (int i = 1; i <= x; i++)
@@ -229,7 +230,7 @@ int factorial(int x)
  * @param input
  * @return vector<POINT>
  */
-vector<POINT> Bezier(double dt, vector<POINT> input)
+vector<POINT> Bezier(double dt, vector<POINT> input)//贝塞尔desu，求曲线suru.
 {
     vector<POINT> output;
 

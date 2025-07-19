@@ -366,6 +366,22 @@ public:
     check += buff[i];
   buff[9] = check; // 校验位
 
+    // 循环发送数据
+    for (size_t i = 0; i < 11; i++)
+      transmitByte(buff[i]);
+  }*/
+    // 验证参数范围
+    // /**
+    //  * 发送控制命令到下位机
+    //  * @param speed  速度值 (-1.0 ~ 1.0)，将映射为 (-45 ~ 45)
+    //  * @param servo  舵机PWM值 (500 ~ 2500)，将映射为 (-255 ~ 255)
+    //  */
+    static float lastSpeed = 0;
+    static unit16_t lastServo = PWMSERVOMID;
+    if(fabs(speed - lastSpeed)>0.01 || abs((int)servo - (int)lastServo) > 5)
+    {
+      if (!isOpen)
+          return;
   // 循环发送数据
   for (size_t i = 0; i < 11; i++)
     transmitByte(buff[i]);

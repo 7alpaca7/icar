@@ -1,10 +1,14 @@
 #pragma once
 #include <vector>
 #include <algorithm>
+#include <vector>
+#include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <numeric>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <set>
 #include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
@@ -17,9 +21,14 @@
 #define PI (3.14159265)
 using namespace std;
 using namespace cv;
+using namespace cv;
 
 class Tracking
 {
+private:
+    const int L_direction[8][2] = {{1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}, {1, 1}};
+    const int R_direction[8][2] = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}};
+    Mat imagePath; // 赛道搜索图像
 private:
     const int L_direction[8][2] = {{1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}, {1, 1}};
     const int R_direction[8][2] = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}};
@@ -107,7 +116,69 @@ public:
                     break;
                 }
             }
+        for (int i = 0; i < COLSIMAGE; i++)
+        {
+            imagePath.at<uchar>(0, i) = BLACK;
+            imagePath.at<uchar>(1, i) = BLACK;
         }
+
+        bool leftFound = false, rightFound = false;
+
+        for (int i = COLSIMAGE / 2; i > 0; i--)
+        {
+            if (rowEnd >= 0 && rowEnd < ROWSIMAGE && i + 1 < COLSIMAGE)
+            {
+                if (imagePath.at<uchar>(rowEnd, i) == BLACK && imagePath.at<uchar>(rowEnd, i + 1) == WHITE)
+                {
+                    L_Start = POINT(rowEnd, i, 4);
+                    leftFound = true;
+                    break;
+                }
+            }
+        }
+
+        for (int i = COLSIMAGE / 2; i < COLSIMAGE - 1; i++)
+        {
+            if (rowEnd >= 0 && rowEnd < ROWSIMAGE && i + 1 < COLSIMAGE)
+            {
+                if (imagePath.at<uchar>(rowEnd, i) == WHITE && imagePath.at<uchar>(rowEnd, i + 1) == BLACK)
+                {
+                    R_Start = POINT(rowEnd, i + 1, 4);
+                    rightFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!leftFound || !rightFound)
+        {
+            cout << "起始点未找到，trackRecognition退出" << endl;
+            return;
+        }
+
+        auto idx = [](int x, int y)
+        { return x * COLSIMAGE + y; };
+
+        // 替换 vector<bool> 为 vector<uint8_t>
+        vector<uint8_t> visitedLeft(ROWSIMAGE * COLSIMAGE, 0);
+        vector<uint8_t> visitedRight(ROWSIMAGE * COLSIMAGE, 0);
+
+        int L_dir = L_Start.direction, R_dir = R_Start.direction;
+        int count = 1000;
+        bool l_flag = true, r_flag = true, grow_l = true, grow_r = true;
+
+        POINT leftPoint = L_Start;
+        POINT rightPoint = R_Start;
+
+        pointsLeft.clear();
+        pointsRight.clear();
+
+        pointsLeft.push_back(leftPoint);
+        pointsRight.push_back(rightPoint);
+        visitedLeft[idx(leftPoint.x, leftPoint.y)] = 1;
+        visitedRight[idx(rightPoint.x, rightPoint.y)] = 1;
+
+        while (count-- > 0)
 
         for (int i = COLSIMAGE / 2; i < COLSIMAGE - 1; i++)
         {
@@ -992,6 +1063,86 @@ public:
         // track(imagePath, img, true); // 赛道线识别
     }
 
+    /**
+     * @brief 显示赛道线识别结果
+     *
+     * @param trackImage 需要叠加显示的图像
+     */
+    void drawImage(Mat &trackImage)
+    {
+        // Point（列号，行号）
+        for (size_t i = 0; i < pointsEdgeLeft.size(); i++)
+        {
+            circle(trackImage, Point(pointsEdgeLeft[i].y, pointsEdgeLeft[i].x), 1,
+                   Scalar(0, 255, 0), -1); // 绿色点
+        }
+        for (size_t i = 0; i < pointsEdgeRight.size(); i++)
+        {
+            circle(trackImage, Point(pointsEdgeRight[i].y, pointsEdgeRight[i].x), 1,
+                   Scalar(0, 255, 255), -1); // 黄色点
+        }
+        // for (size_t i = 0; i < pointsLeft.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsLeft[i].y, pointsLeft[i].x), 1,
+        //            Scalar(0, 255, 0), -1); // 绿色点
+        // }
+        // for (size_t i = 0; i < pointsRight.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsRight[i].y, pointsRight[i].x), 1,
+        //            Scalar(0, 255, 255), -1); // 黄色点
+        // }
+        // for (size_t i = 0; i < pointsEdgeZhong.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsEdgeZhong[i].y, pointsEdgeZhong[i].x), 1,
+        //            Scalar(255, 0, 0), -1); // 蓝色点
+        // }
+        // for (size_t i = 0; i < pointsLGuai.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsLGuai[i].y, pointsLGuai[i].x), 5,
+        //            Scalar(255, 0, 255), -1); // 紫色点
+        // }
+        // for (size_t i = 0; i < pointsRGuai.size(); i++)
+        // {
+        //     circle(trackImage, Point(pointsRGuai[i].y, pointsRGuai[i].x), 5,
+        //            Scalar(255, 255, 0), -1); // 青色点
+        // }
+        // for (size_t i = 0; i < left_angle.size(); i++)
+        // {
+        //     if (left_angle[i] != 0)
+        //     {
+        //         circle(trackImage, Point(pointsLeft[i].y, pointsLeft[i].x), 1,
+        //                Scalar(255, 0, 255), -1); // 绿色点
+        //     }
+        // }
+        // for (size_t i = 0; i < right_angle.size(); i++)
+        // {
+        //     if (right_angle[i] != 0)
+        //     {
+        //         circle(trackImage, Point(pointsRight[i].y, pointsRight[i].x), 1,
+        //                Scalar(255, 0, 255), -1); // 黄色点
+        //     }
+        // }
+        for (size_t i = 0; i < spurroad.size(); i++)
+        {
+            circle(trackImage, Point(spurroad[i].y, spurroad[i].x), 4,
+                   Scalar(255, 255, 0), -1); // 紫色点
+        }
+        // if (save)
+        //     savePicture(trackImage, true); // 保存图像
+    }
+    // void savePicture(Mat &image, bool flag)
+    // {
+    //     // 存图
+    //     string name = ".jpg";
+    //     static int counter = 0;
+    //     counter++;
+    //     string imgPath = "./";
+    //     if (flag)
+    //         imgPath += "cai";
+    //     imgPath += "tu/";
+    //     name = imgPath + to_string(counter) + ".jpg";
+    //     imwrite(name, image);
+    // }
     /**
      * @brief 显示赛道线识别结果
      *
