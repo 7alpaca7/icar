@@ -56,7 +56,7 @@ public:
             here = defence(here, 0, edge.size() - 1);
             pre = defence(pre, 0, edge.size() - 1);
             next = defence(next, 0, edge.size() - 1);
-            int ah = edge[here].y, ap = edge[pre].y, an = edge[an].y;
+            int ah = edge[here].y, ap = edge[pre].y, an = edge[next].y;
             if (abs(ah - an) > jian_judge && abs(ah - ap) < jian_judge)
             {
                 return i;
@@ -91,12 +91,19 @@ public:
         }
         if (flag)
         {
-            edge.erase(edge.begin(), edge.begin() + i + 5);
-            P = edge[0].x;
+            if (edge.size() - i - 5 <= 0)
+            {
+                edge.clear();
+            }
+            else
+            {
+                edge.erase(edge.begin(), edge.begin() + i + 5);
+                P = edge[0].x;
+            }
         }
     }
 
-    void Bu_UD(vector<POINT> &alert, POINT up, POINT EStart,int &AP)
+    void Bu_UD(vector<POINT> &alert, POINT up, POINT EStart, int &AP)
     {
         if (textDebug)
             cout << "开始Bu_UD" << endl;
@@ -121,7 +128,7 @@ public:
     void burger_go(vector<POINT> &keep, vector<POINT> &alert, int &KP, int &AP, const int start, const int end, const int &dui, const vector<POINT> &spurroad, const POINT &origin)
     {
         flagDown = findDown(spurroad, start, end, dui), flagUP;
-        if (flagDown)
+        if (flagDown != -1)
         {
             if (textDebug)
                 cout << "找到下角点,flagDown: " << flagDown << endl;
@@ -133,12 +140,12 @@ public:
                 cout << "没找到下角点" << endl;
             flagUP = findUP(keep, spurroad, start, end, KP);
         }
-        if (flagUP)
+        if (flagUP != -1)
         {
             if (textDebug)
                 cout << "找到上角点" << endl;
             clean(keep, spurroad[flagUP].x, KP);
-            Bu_UD(alert, spurroad[flagUP], origin,AP);
+            Bu_UD(alert, spurroad[flagUP], origin, AP);
         }
         else
         {
